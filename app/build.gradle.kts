@@ -9,6 +9,10 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "me.shovon.sms2wallet"
     compileSdk = 36
