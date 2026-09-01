@@ -1,0 +1,13 @@
+SMS2Wallet
+Copyright (C) 2026 Jubayer (github.com/ajshovon)
+
+This program links bd-sms-parsers (https://github.com/ajshovon/bd-sms-parsers),
+which is derived from Cashiro (https://github.com/ritesh-kanwar/Cashiro),
+Copyright (C) Ritesh Kanwar, licensed under the GNU Affero General Public
+License version 3.
+
+Because it links AGPL-licensed code, this program is also licensed under the
+GNU Affero General Public License version 3. See LICENSE for the full text.
+
+"Wallet" and "BudgetBakers" are trademarks of BudgetBakers s.r.o. This project
+is an independent, unaffiliated client of their public REST API.

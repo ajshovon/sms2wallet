@@ -1,0 +1,4 @@
+[submodule "bd-sms-parsers"]
+	path = bd-sms-parsers
+	url = https://github.com/ajshovon/bd-sms-parsers.git
+	branch = main
