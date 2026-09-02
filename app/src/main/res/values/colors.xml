@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1B5E4A</color>
+
+    <!-- Matches Sms2WalletTheme's light background token (Color.kt: md_theme_light_background),
+         used only for the pre-Compose window background - see themes.xml. -->
+    <color name="window_background_light">#FBFDF9</color>
+    <!-- Matches md_theme_dark_background. -->
+    <color name="window_background_dark">#191C1A</color>
 </resources>

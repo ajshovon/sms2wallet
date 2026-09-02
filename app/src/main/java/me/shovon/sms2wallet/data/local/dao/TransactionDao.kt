@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import me.shovon.sms2wallet.data.local.entity.TransactionEntity
 import me.shovon.sms2wallet.domain.model.PushState
@@ -27,6 +28,15 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?
+
+    /**
+     * General single-row update, matched by primary key. Prefer the narrower, state-guarded
+     * queries below ([markSending], [markPushed], [markFailed]) for anything touching
+     * [pushState] on the send path - this is for callers outside that pipeline (e.g. a review
+     * UI editing a [PushState.PARSED] row's category, or approving it into [PushState.QUEUED]).
+     */
+    @Update
+    suspend fun update(transaction: TransactionEntity)
 
     @Query("SELECT * FROM transactions WHERE push_state = :state ORDER BY timestamp DESC")
     fun observeByState(state: PushState): Flow<List<TransactionEntity>>
@@ -206,6 +216,14 @@ interface TransactionDao {
         dayEndMillis: Long,
         pushed: PushState = PushState.PUSHED
     ): Flow<Int>
+
+    /**
+     * Every distinct (bank, last-4) pair the app has ever parsed a transaction from, for the
+     * Settings "Account mapping" list. Read-only projection - adds no column and needs no
+     * migration.
+     */
+    @Query("SELECT DISTINCT bank_name, account_last4 FROM transactions ORDER BY bank_name ASC")
+    fun observeDistinctSources(): Flow<List<TransactionSource>>
 
     /** Count of transactions still waiting to be sent (queued or currently in flight), for the dashboard. */
     @Query("SELECT COUNT(*) FROM transactions WHERE push_state IN (:queued, :sending)")

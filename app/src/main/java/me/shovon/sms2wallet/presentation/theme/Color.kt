@@ -1,0 +1,71 @@
+package me.shovon.sms2wallet.presentation.theme
+
+import androidx.compose.ui.graphics.Color
+
+// Hand-picked fallback scheme (used on API < 31, where dynamic/Material You colour is
+// unavailable). Seeded from the app's launcher colour, a deep teal-green.
+
+val md_theme_light_primary = Color(0xFF1B5E4A)
+val md_theme_light_onPrimary = Color(0xFFFFFFFF)
+val md_theme_light_primaryContainer = Color(0xFFA8F2D3)
+val md_theme_light_onPrimaryContainer = Color(0xFF00210F)
+val md_theme_light_secondary = Color(0xFF4C6358)
+val md_theme_light_onSecondary = Color(0xFFFFFFFF)
+val md_theme_light_secondaryContainer = Color(0xFFCEE9D9)
+val md_theme_light_onSecondaryContainer = Color(0xFF092016)
+val md_theme_light_tertiary = Color(0xFF3D6373)
+val md_theme_light_onTertiary = Color(0xFFFFFFFF)
+val md_theme_light_tertiaryContainer = Color(0xFFC0E8FB)
+val md_theme_light_onTertiaryContainer = Color(0xFF001F29)
+val md_theme_light_error = Color(0xFFBA1A1A)
+val md_theme_light_onError = Color(0xFFFFFFFF)
+val md_theme_light_errorContainer = Color(0xFFFFDAD6)
+val md_theme_light_onErrorContainer = Color(0xFF410002)
+val md_theme_light_background = Color(0xFFFBFDF9)
+val md_theme_light_onBackground = Color(0xFF191C1A)
+val md_theme_light_surface = Color(0xFFFBFDF9)
+val md_theme_light_onSurface = Color(0xFF191C1A)
+val md_theme_light_surfaceVariant = Color(0xFFDBE5DD)
+val md_theme_light_onSurfaceVariant = Color(0xFF404943)
+val md_theme_light_outline = Color(0xFF707973)
+val md_theme_light_outlineVariant = Color(0xFFBFC9C1)
+
+val md_theme_dark_primary = Color(0xFF8CD5B7)
+val md_theme_dark_onPrimary = Color(0xFF003823)
+val md_theme_dark_primaryContainer = Color(0xFF004F35)
+val md_theme_dark_onPrimaryContainer = Color(0xFFA8F2D3)
+val md_theme_dark_secondary = Color(0xFFB3CCBE)
+val md_theme_dark_onSecondary = Color(0xFF1F352A)
+val md_theme_dark_secondaryContainer = Color(0xFF354B40)
+val md_theme_dark_onSecondaryContainer = Color(0xFFCEE9D9)
+val md_theme_dark_tertiary = Color(0xFFA5CCDE)
+val md_theme_dark_onTertiary = Color(0xFF063542)
+val md_theme_dark_tertiaryContainer = Color(0xFF244C5A)
+val md_theme_dark_onTertiaryContainer = Color(0xFFC0E8FB)
+val md_theme_dark_error = Color(0xFFFFB4AB)
+val md_theme_dark_onError = Color(0xFF690005)
+val md_theme_dark_errorContainer = Color(0xFF93000A)
+val md_theme_dark_onErrorContainer = Color(0xFFFFDAD6)
+val md_theme_dark_background = Color(0xFF191C1A)
+val md_theme_dark_onBackground = Color(0xFFE1E3DF)
+val md_theme_dark_surface = Color(0xFF191C1A)
+val md_theme_dark_onSurface = Color(0xFFE1E3DF)
+val md_theme_dark_surfaceVariant = Color(0xFF404943)
+val md_theme_dark_onSurfaceVariant = Color(0xFFBFC9C1)
+val md_theme_dark_outline = Color(0xFF8A938C)
+val md_theme_dark_outlineVariant = Color(0xFF404943)
+
+// Semantic colours not present in the default Material 3 ColorScheme: expense/income amount
+// text and the "not mapped" warning state used in parser + account-mapping settings rows.
+
+val income_light = Color(0xFF1B7A43)
+val expense_light = Color(0xFFBA1A1A)
+val warning_light = Color(0xFF8A5A00)
+val warningContainer_light = Color(0xFFFFE0B2)
+val onWarningContainer_light = Color(0xFF2A1800)
+
+val income_dark = Color(0xFF7DDB9D)
+val expense_dark = Color(0xFFFFB4AB)
+val warning_dark = Color(0xFFFFC559)
+val warningContainer_dark = Color(0xFF553E00)
+val onWarningContainer_dark = Color(0xFFFFDEA6)

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Sms2Wallet" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Minimal window theme: the app is 100% Jetpack Compose, so this only controls the window
+      background shown for the brief moment before `Sms2WalletTheme` (Compose) takes over -
+      it deliberately does not try to duplicate Compose's Material 3 colour scheme. See
+      values-night/themes.xml for the dark counterpart, matched so that moment isn't a
+      light/dark mismatch flash.
+    -->
+    <style name="Theme.Sms2Wallet" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background_light</item>
+    </style>
 </resources>

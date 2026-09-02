@@ -41,7 +41,10 @@ object PushStateTransitions {
      * pick up a row: every other state is either not yet approved for sending ([PushState.PARSED]),
      * already in flight or resolved ([PushState.SENDING], [PushState.PUSHED]), or requires a
      * decision before it can be attempted again ([PushState.FAILED_RETRYABLE],
-     * [PushState.FAILED_PERMANENT], [PushState.NEEDS_VERIFY]).
+     * [PushState.FAILED_PERMANENT], [PushState.NEEDS_VERIFY]), or dismissed outright by the
+     * user ([PushState.DISMISSED]) - a row in any of those states is never sent by this
+     * machine, which is what keeps [PushState.DISMISSED] safe without needing a special case
+     * in [next].
      */
     fun isSendable(state: PushState): Boolean = state == PushState.QUEUED
 

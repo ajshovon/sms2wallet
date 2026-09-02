@@ -18,6 +18,7 @@ package me.shovon.sms2wallet.domain.model
  * SENDING --(network/5xx, no ambiguity)--> FAILED_RETRYABLE   (may return to QUEUED)
  * SENDING --(timeout / connection reset / unknown outcome)--> NEEDS_VERIFY
  * FAILED_RETRYABLE --(user/worker requeues)--> QUEUED
+ * PARSED | FAILED_* | NEEDS_VERIFY --(user dismisses)--> DISMISSED  (terminal, never sent)
  * NEEDS_VERIFY --(reconciliation only, via GET against the API)--> PUSHED | FAILED_PERMANENT | QUEUED
  * ```
  */
@@ -54,5 +55,19 @@ enum class PushState {
      * resolved by querying the Wallet API for a matching record, never by blindly retrying,
      * since a blind retry could create a duplicate.
      */
-    NEEDS_VERIFY
+    NEEDS_VERIFY,
+
+    /**
+     * The user explicitly dismissed this transaction from the review queue. Terminal - never
+     * sent, never retried, and deliberately absent from `TransactionDao.observeReviewQueue`.
+     *
+     * Distinct from [FAILED_PERMANENT], which the review queue *does* show because a permanent
+     * send failure is something the user still needs to see. Reusing that state for dismissal
+     * would leave the row sitting in the queue it was just dismissed from.
+     *
+     * The row itself is kept rather than deleted: its `transaction_hash` is what makes
+     * re-scanning the SMS inbox a no-op, so deleting a dismissed transaction would let the very
+     * next scan re-ingest the same message and put it straight back in the queue.
+     */
+    DISMISSED
 }

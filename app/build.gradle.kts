@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -13,6 +14,23 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Release signing credentials come from local.properties (gitignored) on a developer machine,
+// or from the environment in CI, where the keystore is decoded from a repository secret. They
+// are never committed.
+//
+// If neither source supplies them the release build stays unsigned rather than failing
+// configuration, so a fresh clone (and any fork's CI) can still run `assembleRelease`.
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
+/** local.properties wins over the environment, so a local build is never hijacked by stray env vars. */
+fun signingProperty(name: String): String? =
+    localProps.getProperty(name) ?: System.getenv(name)
+
+val releaseStoreFile: String? = signingProperty("RELEASE_STORE_FILE")
+val hasReleaseSigning = releaseStoreFile != null && file(releaseStoreFile).exists()
+
 android {
     namespace = "me.shovon.sms2wallet"
     compileSdk = 36
@@ -26,8 +44,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = signingProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = signingProperty("RELEASE_KEY_ALIAS")
+                keyPassword = signingProperty("RELEASE_KEY_PASSWORD")
+                // v1 (JAR) signing is off by default in AGP 8 and minSdk is 26, so v2 alone is
+                // accepted everywhere this app runs. v3 additionally enables key rotation later.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
