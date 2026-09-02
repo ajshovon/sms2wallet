@@ -46,7 +46,7 @@ interface WalletApiClient {
         accountId: String,
         dayIso: String,
         amount: String,
-        source: String = "rest",
+        source: String? = null,
     ): ApiResult<List<RecordDto>>
 
     /** Cheap call (`GET /accounts?limit=1`) to check whether the configured token is valid. */

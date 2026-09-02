@@ -4,12 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.presentation.model.ReviewQueueUiState
 import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
@@ -24,6 +28,7 @@ import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
 @HiltViewModel
 class ReviewQueueViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val pushScheduler: PushScheduler,
 ) : ViewModel() {
 
     private val selection = MutableStateFlow(SelectionState())
@@ -57,7 +62,11 @@ class ReviewQueueViewModel @Inject constructor(
      */
     fun approve(id: String) {
         val rowId = id.toLongOrNull() ?: return
-        viewModelScope.launch { transactionRepository.approveForSend(rowId) }
+        viewModelScope.launch {
+            // Only schedule when the row actually moved: approveForSend refuses rows that have
+            // already left the review states, and waking the worker for those is pointless.
+            if (transactionRepository.approveForSend(rowId)) pushScheduler.schedule()
+        }
     }
 
     /**
@@ -68,6 +77,43 @@ class ReviewQueueViewModel @Inject constructor(
     fun dismiss(id: String) {
         val rowId = id.toLongOrNull() ?: return
         viewModelScope.launch { transactionRepository.dismiss(rowId) }
+    }
+
+    /**
+     * One-shot user messages (e.g. "Dismissed 12 transactions"). A [Channel] rather than a
+     * StateFlow so the message is delivered exactly once and is not replayed when the screen is
+     * recreated on rotation.
+     */
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages: Flow<String> = _messages.receiveAsFlow()
+
+    /**
+     * Dismisses every transaction currently in the review queue.
+     *
+     * The count comes back from the database rather than from the on-screen list, so the
+     * confirmation message stays truthful even if an SMS arrived between the user opening the
+     * confirm dialog and confirming it.
+     */
+    fun dismissAll() {
+        viewModelScope.launch {
+            val dismissed = transactionRepository.dismissAll()
+            selection.value = SelectionState()
+            if (dismissed > 0) {
+                _messages.send("Dismissed $dismissed ${if (dismissed == 1) "transaction" else "transactions"}")
+            }
+        }
+    }
+
+    /** Dismisses just the rows checked in multi-select mode. */
+    fun dismissSelected() {
+        val ids = selection.value.selectedIds
+        selection.value = SelectionState()
+        viewModelScope.launch {
+            val dismissed = ids.mapNotNull { it.toLongOrNull() }.count { transactionRepository.dismiss(it) }
+            if (dismissed > 0) {
+                _messages.send("Dismissed $dismissed ${if (dismissed == 1) "transaction" else "transactions"}")
+            }
+        }
     }
 
     fun toggleMultiSelect() {
@@ -85,7 +131,8 @@ class ReviewQueueViewModel @Inject constructor(
         val ids = selection.value.selectedIds
         selection.value = SelectionState()
         viewModelScope.launch {
-            ids.mapNotNull { it.toLongOrNull() }.forEach { transactionRepository.approveForSend(it) }
+            val approved = ids.mapNotNull { it.toLongOrNull() }.count { transactionRepository.approveForSend(it) }
+            if (approved > 0) pushScheduler.schedule()
         }
     }
 

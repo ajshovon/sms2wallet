@@ -86,6 +86,32 @@ class TransactionRepository @Inject constructor(
     }
 
     /**
+     * User-initiated retry of a failed push: returns a failed row to [PushState.QUEUED].
+     *
+     * Accepts [PushState.FAILED_PERMANENT] as well as [PushState.FAILED_RETRYABLE], which
+     * [approveForSend] deliberately does not. Both states mean the same thing about the server:
+     * nothing was created. A permanent failure is a rejected payload (4xx) or one this app
+     * refused to send at all, so re-queueing cannot duplicate a record - the user has usually
+     * just fixed the cause (a token, an account, a category) and expects Retry to work.
+     *
+     * [PushState.SENDING], [PushState.PUSHED] and [PushState.NEEDS_VERIFY] are still refused:
+     * for those the server may hold a record, and only reconciliation may move them.
+     */
+    suspend fun retryFailed(id: Long): Boolean {
+        val current = transactionDao.findById(id) ?: return false
+        val state = runCatching { PushState.valueOf(current.pushState) }.getOrNull() ?: return false
+        if (state != PushState.FAILED_RETRYABLE && state != PushState.FAILED_PERMANENT) return false
+        transactionDao.update(
+            current.copy(
+                pushState = PushState.QUEUED.name,
+                lastError = null,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return true
+    }
+
+    /**
      * User-dismisses a row from the review queue: moves a reviewable row into
      * [PushState.DISMISSED] so it leaves the queue but remains on record.
      *
@@ -120,6 +146,17 @@ class TransactionRepository @Inject constructor(
         )
         return true
     }
+
+    /**
+     * Dismisses every transaction currently in the review queue.
+     *
+     * @return how many rows were dismissed, so the caller can report the result rather than
+     *   guessing from a stale on-screen count.
+     */
+    suspend fun dismissAll(): Int = transactionDao.dismissAllReviewable(
+        reason = DISMISSED_BY_USER,
+        now = System.currentTimeMillis(),
+    )
 
     /**
      * Stores a hand-entered transaction (cash spending that never produced an SMS) directly in

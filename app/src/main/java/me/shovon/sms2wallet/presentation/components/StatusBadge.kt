@@ -2,13 +2,12 @@ package me.shovon.sms2wallet.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 
 /** Semantic intent for a small pill-shaped status label. */
@@ -37,8 +36,8 @@ fun StatusBadge(
     Text(
         text = text,
         modifier = modifier
-            .background(color = container, shape = RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .background(color = container, shape = MaterialTheme.shapes.small)
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
         color = content,
         style = MaterialTheme.typography.labelSmall
     )

@@ -10,15 +10,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,15 +29,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.components.AppTextField
+import me.shovon.sms2wallet.presentation.components.GroupedContainer
+import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
+import me.shovon.sms2wallet.presentation.components.SectionHeader
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
+import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 
@@ -54,6 +62,7 @@ fun SettingsContent(
     onTokenChange: (String) -> Unit,
     onToggleTokenVisibility: () -> Unit,
     onTestConnection: () -> Unit,
+    onSyncWalletData: () -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
     onAccountMappingChange: (String, String) -> Unit,
@@ -66,11 +75,20 @@ fun SettingsContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(
+                start = Spacing.lg,
+                end = Spacing.lg,
+                top = Spacing.sm,
+                bottom = Spacing.xxl
+            )
         ) {
-            item { SectionHeader("Wallet connection") }
-            item {
+            item(key = "wallet-header") {
+                SectionHeader(
+                    title = "Wallet connection",
+                    supportingText = "Your API token is stored encrypted on this device."
+                )
+            }
+            item(key = "wallet-body") {
                 WalletConnectionSection(
                     state = state.walletConnection,
                     onTokenChange = onTokenChange,
@@ -79,38 +97,79 @@ fun SettingsContent(
                 )
             }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SectionHeader("Parsers")
-                    TextButton(onClick = onOpenParserPlayground) {
-                        Icon(Icons.Filled.Science, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(4.dp))
-                        Text("Playground")
-                    }
-                }
+            item(key = "catalogue") {
+                WalletCatalogueRow(
+                    state = state.catalogue,
+                    enabled = state.walletConnection.hasStoredToken,
+                    onSync = onSyncWalletData,
+                    modifier = Modifier.padding(top = Spacing.md)
+                )
             }
-            items(state.parserSettings, key = { it.providerName }) { parserSetting ->
+
+            item(key = "parsers-header") {
+                SectionHeader(
+                    title = "Parsers",
+                    supportingText = "Which providers are read, and which auto-push.",
+                    modifier = Modifier.padding(top = Spacing.xl),
+                    trailing = {
+                        TextButton(onClick = onOpenParserPlayground) {
+                            Icon(
+                                imageVector = Icons.Filled.Science,
+                                contentDescription = null,
+                                modifier = Modifier.size(IconSize.md)
+                            )
+                            Spacer(Modifier.size(Spacing.xs))
+                            Text("Playground")
+                        }
+                    }
+                )
+            }
+            itemsIndexed(
+                items = state.parserSettings,
+                key = { _, parser -> parser.providerName }
+            ) { index, parserSetting ->
                 ParserSettingRow(
                     setting = parserSetting,
+                    index = index,
+                    count = state.parserSettings.size,
                     onEnabledChange = { onParserEnabledChange(parserSetting.providerName, it) },
                     onAutoPushChange = { onParserAutoPushChange(parserSetting.providerName, it) }
                 )
+                if (index < state.parserSettings.lastIndex) GroupedRowDivider()
             }
 
-            item { SectionHeader("Account mapping") }
-            items(state.accountMappings, key = { it.sourceId }) { mapping ->
-                AccountMappingRow(
-                    mapping = mapping,
-                    onAccountSelected = { account -> onAccountMappingChange(mapping.sourceId, account) }
+            item(key = "mapping-header") {
+                SectionHeader(
+                    title = "Account mapping",
+                    supportingText = "Where transactions from each SMS source are filed in Wallet.",
+                    modifier = Modifier.padding(top = Spacing.xl)
                 )
             }
+            if (state.accountMappings.isEmpty()) {
+                item(key = "mapping-empty") { NoSourcesYet() }
+            } else {
+                itemsIndexed(
+                    items = state.accountMappings,
+                    key = { _, mapping -> mapping.sourceId }
+                ) { index, mapping ->
+                    AccountMappingRow(
+                        mapping = mapping,
+                        index = index,
+                        count = state.accountMappings.size,
+                        onAccountSelected = { account -> onAccountMappingChange(mapping.sourceId, account) }
+                    )
+                    if (index < state.accountMappings.lastIndex) GroupedRowDivider()
+                }
+            }
 
-            item { SectionHeader("Reminders") }
-            item {
+            item(key = "reminders-header") {
+                SectionHeader(
+                    title = "Reminders",
+                    supportingText = "A nudge to log cash spending that never produced an SMS.",
+                    modifier = Modifier.padding(top = Spacing.xl)
+                )
+            }
+            item(key = "reminders-body") {
                 RemindersSection(
                     state = state.reminders,
                     onEnabledChange = onReminderEnabledChange,
@@ -122,13 +181,85 @@ fun SettingsContent(
     }
 }
 
+/**
+ * What the app currently knows about your Wallet, and how to bring it up to date.
+ *
+ * Accounts and categories are cached locally, so anything created in Wallet after the last sync
+ * simply will not appear in the pickers. Rather than leave that as a mystery, this states what
+ * is cached, when it was fetched, and offers the fix in the same place.
+ */
 @Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = modifier.padding(top = 8.dp, bottom = 4.dp)
-    )
+private fun WalletCatalogueRow(
+    state: WalletCatalogueUiState,
+    enabled: Boolean,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GroupedContainer(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Accounts and categories",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = when {
+                        state.lastSyncedLabel == null -> "Not synced yet"
+                        else -> "${state.accountCount} accounts · ${state.categoryCount} categories · " +
+                            "updated ${state.lastSyncedLabel}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+                state.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.xs)
+                    )
+                }
+            }
+
+            if (state.isSyncing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(IconSize.lg),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                TextButton(onClick = onSync, enabled = enabled) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.md)
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text("Sync")
+                }
+            }
+        }
+    }
+}
+
+/** Shown when no SMS source has been seen yet, so the mapping list would otherwise be blank. */
+@Composable
+private fun NoSourcesYet() {
+    GroupedContainer {
+        Text(
+            text = "No sources detected yet. Once a transaction SMS arrives, its provider appears here to be mapped.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(Spacing.lg)
+        )
+    }
 }
 
 @Composable
@@ -138,37 +269,59 @@ private fun WalletConnectionSection(
     onToggleVisibility: () -> Unit,
     onTestConnection: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
+    GroupedContainer {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            AppTextField(
+                label = "API token",
                 value = state.tokenInput,
                 onValueChange = onTokenChange,
-                label = { Text("Wallet API token") },
-                singleLine = true,
-                visualTransformation = if (state.isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                placeholder = if (state.hasStoredToken) {
+                    "Enter a new token to replace the saved one"
+                } else {
+                    "Paste your Wallet API token"
+                },
+                supportingText = if (state.hasStoredToken && state.tokenInput.isEmpty()) {
+                    "A token is saved on this device."
+                } else {
+                    null
+                },
+                visualTransformation = if (state.isTokenVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
                 trailingIcon = {
                     IconButton(onClick = onToggleVisibility) {
                         Icon(
-                            imageVector = if (state.isTokenVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            imageVector = if (state.isTokenVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
                             contentDescription = if (state.isTokenVisible) "Hide token" else "Show token"
                         )
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
+                }
             )
 
             ConnectionStatusRow(status = state.status)
 
             OutlinedButton(
                 onClick = onTestConnection,
-                enabled = !state.isTesting && state.tokenInput.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
+                // Testing the already-saved token is valid with the field left empty.
+                enabled = !state.isTesting && (state.tokenInput.isNotBlank() || state.hasStoredToken),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md)
             ) {
                 if (state.isTesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(IconSize.sm),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.size(Spacing.sm))
                 }
-                Text(if (state.isTesting) "Testing..." else "Test connection")
+                Text(if (state.isTesting) "Testing…" else "Test connection")
             }
         }
     }
@@ -187,8 +340,12 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
         )
         is ConnectionStatus.Failed -> Triple(Icons.Filled.Error, status.message, MaterialTheme.colorScheme.error)
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+    Row(
+        modifier = Modifier.padding(top = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(IconSize.md))
         Text(text = label, color = color, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -203,6 +360,7 @@ private fun SettingsScreenLightPreview() {
             onTokenChange = {},
             onToggleTokenVisibility = {},
             onTestConnection = {},
+            onSyncWalletData = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },
@@ -223,6 +381,7 @@ private fun SettingsScreenDarkPreview() {
             onTokenChange = {},
             onToggleTokenVisibility = {},
             onTestConnection = {},
+            onSyncWalletData = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },

@@ -5,88 +5,122 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.StatusBadge
+import me.shovon.sms2wallet.presentation.components.groupedRowShape
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
  * One provider row in the "Parsers" settings section: two independent switches (Enabled,
- * Auto-push) plus a caption naming the mapped Wallet account, or a warning-styled
- * "Not mapped" caption. Auto-push is disabled and captioned when there's no mapping, since
- * it has no effect without one.
+ * Auto-push) plus a caption naming the mapped Wallet account, or a warning "Not mapped" state.
+ *
+ * Auto-push is disabled and explained when there is no mapping, since it cannot do anything
+ * without one - a switch that silently does nothing is worse than one that says why it can't.
  */
 @Composable
 fun ParserSettingRow(
     setting: ParserSettingUiState,
     onEnabledChange: (Boolean) -> Unit,
-    onAutoPushChange: (Boolean) -> Unit
+    onAutoPushChange: (Boolean) -> Unit,
+    index: Int,
+    count: Int,
+    modifier: Modifier = Modifier
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(setting.providerName, style = MaterialTheme.typography.titleMedium)
-                LabeledSwitch(label = "Enabled", checked = setting.isEnabled, onCheckedChange = onEnabledChange)
-            }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = groupedRowShape(index = index, count = count),
+        color = groupedSurfaceColor()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            SettingToggleRow(
+                title = setting.providerName,
+                titleStyle = MaterialTheme.typography.bodyLarge,
+                titleWeight = FontWeight.Medium,
+                checked = setting.isEnabled,
+                onCheckedChange = onEnabledChange
+            )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    if (setting.isMapped) {
-                        Text(
-                            text = "Mapped to ${setting.mappedAccountName}",
+            SettingToggleRow(
+                title = "Auto-push",
+                titleStyle = MaterialTheme.typography.bodyMedium,
+                titleWeight = FontWeight.Normal,
+                checked = setting.isAutoPushEnabled && setting.isMapped,
+                enabled = setting.isEnabled && setting.isMapped,
+                onCheckedChange = onAutoPushChange,
+                supporting = {
+                    when {
+                        !setting.isMapped -> Row(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = Spacing.xxs)
+                        ) {
+                            StatusBadge(text = "Not mapped", intent = BadgeIntent.WARNING)
+                            Text(
+                                text = "Map an account first",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        else -> Text(
+                            text = "Goes straight to ${setting.mappedAccountName}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        StatusBadge(text = "Not mapped", intent = BadgeIntent.WARNING)
-                    }
-                    if (!setting.isMapped) {
-                        Text(
-                            text = "Auto-push needs an account mapping first",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Spacing.xxs)
                         )
                     }
                 }
-                LabeledSwitch(
-                    label = "Auto-push",
-                    checked = setting.isAutoPushEnabled && setting.isMapped,
-                    enabled = setting.isMapped,
-                    onCheckedChange = onAutoPushChange
-                )
-            }
+            )
         }
     }
 }
 
+/**
+ * Label-plus-switch row with an optional supporting line beneath the label. Shared by both
+ * switches above so their alignment and disabled treatment cannot drift apart.
+ */
 @Composable
-private fun LabeledSwitch(
-    label: String,
+private fun SettingToggleRow(
+    title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean = true
+    titleStyle: androidx.compose.ui.text.TextStyle,
+    titleWeight: FontWeight,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    supporting: @Composable (() -> Unit)? = null
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = titleStyle,
+                fontWeight = titleWeight,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+            supporting?.invoke()
+        }
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }

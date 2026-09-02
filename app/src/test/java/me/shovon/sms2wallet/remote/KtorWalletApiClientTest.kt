@@ -217,6 +217,7 @@ class KtorWalletApiClientTest {
             jsonResponse("""{"summary":{},"results":[]}""", HttpStatusCode.OK)
         }
         val client = clientWith(engine)
+        // POST /records is capped at maxItems: 50 in the OpenAPI schema.
         val requests = (1..51).map { sampleRequest(accountId = "acc-$it", amount = -1.0) }
 
         val result = client.createRecords(requests)
@@ -263,5 +264,104 @@ class KtorWalletApiClientTest {
         val accounts = (result as ApiResult.Success).data
         assertEquals(listOf("acc-synthetic-1", "acc-synthetic-2"), accounts.map { it.id })
         assertEquals(2, requestCount)
+    }
+
+    // ---- Pagination against the real response shape ------------------------
+
+    @Test
+    fun `listCategories follows limit-offset pages when the server sends no nextOffset`() = runTest {
+        // The live API returns {categories, limit, offset, total} and never a nextOffset, so a
+        // loop keyed on that field alone stopped after page one and dropped the rest.
+        var calls = 0
+        val engine = MockEngine { request ->
+            calls++
+            val offset = request.url.parameters["offset"]?.toInt() ?: 0
+            val body = when (offset) {
+                0 -> """{"categories":[${(1..200).joinToString(",") { """{"id":"c$it"}""" }}],"limit":200,"offset":0,"total":250}"""
+                else -> """{"categories":[${(201..250).joinToString(",") { """{"id":"c$it"}""" }}],"limit":200,"offset":200,"total":250}"""
+            }
+            jsonResponse(body, HttpStatusCode.OK)
+        }
+
+        val result = clientWith(engine).listCategories()
+
+        assertTrue(result is ApiResult.Success)
+        assertEquals(250, (result as ApiResult.Success).data.size)
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun `listAccounts stops on a short page without asking for another`() = runTest {
+        var calls = 0
+        val engine = MockEngine {
+            calls++
+            jsonResponse("""{"accounts":[{"id":"a1"},{"id":"a2"}],"limit":200,"offset":0}""", HttpStatusCode.OK)
+        }
+
+        val result = clientWith(engine).listAccounts()
+
+        assertTrue(result is ApiResult.Success)
+        assertEquals(2, (result as ApiResult.Success).data.size)
+        // A page shorter than the limit is the last one; a second request would be wasted budget.
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `findRecords reads the records array even when another array precedes it`() = runTest {
+        // Verbatim shape from the live API: appliedRecordDateFilters is an array of filter
+        // strings and appears before "records". Taking the first array found parsed those
+        // strings as records, which broke reconciliation - the check that stops duplicates.
+        val body = """
+            {"appliedRecordDateFilters":["gte.2026-09-02T00:00:00.000Z","lt.2026-09-03T00:00:00.000Z"],
+             "limit":50,"offset":0,
+             "records":[{"id":"rec-1","accountId":"acc-1","amount":{"value":-1,"currencyCode":"BDT"},
+                         "recordDate":"2026-09-02T17:06:55.000Z"}]}
+        """.trimIndent()
+        val engine = MockEngine { jsonResponse(body, HttpStatusCode.OK) }
+
+        val result = clientWith(engine).findRecords("acc-1", "2026-09-02", "-1")
+
+        assertTrue(result is ApiResult.Success)
+        val records = (result as ApiResult.Success).data
+        assertEquals(1, records.size)
+        assertEquals("rec-1", records.single().id)
+    }
+
+    // ---- Real server payloads ---------------------------------------------
+
+    @Test
+    fun `createRecords parses a genuine 200 response from the live API`() = runTest {
+        // Captured verbatim from a real POST /records against rest.budgetbakers.com, with the
+        // account/record UUIDs replaced by synthetic ones. Pins the DTOs to the shape the
+        // server actually sends - note `category` arrives as a nested object, not a
+        // `categoryId` string, and extra fields (recordType, labels, accountName, source)
+        // must be tolerated.
+        val body = """
+            {"summary":{"total":1,"succeeded":1,"clientErrors":0,"serverErrors":0,"documentsWritten":1},
+             "results":[{"inputIndex":0,"id":"00000000-0000-4000-8000-000000000001","success":true,
+               "record":{"id":"00000000-0000-4000-8000-000000000001",
+                 "accountId":"00000000-0000-4000-8000-000000000000",
+                 "note":"SMS2Wallet test","counterParty":"SMS2Wallet test",
+                 "amount":{"value":-1,"currencyCode":"BDT"},
+                 "recordDate":"2026-09-02T17:06:55.000Z",
+                 "category":{"id":"00000000-0000-4000-8000-000000000002","name":"Unknown expense",
+                   "group":{"id":"unknown_records","name":"Unknown"},"color":"#d0d0d0"},
+                 "recordState":"cleared","recordType":"expense","labels":[],
+                 "createdAt":"2026-09-02T17:06:58.435Z","updatedAt":"2026-09-02T17:06:59.355Z",
+                 "accountName":"Cash","accountIsBankSync":false,"transfer":null,"source":"rest"}}]}
+        """.trimIndent()
+        val engine = MockEngine { jsonResponse(body, HttpStatusCode.OK) }
+
+        val result = clientWith(engine).createRecords(listOf(sampleRequest()))
+
+        assertTrue(result is ApiResult.Success)
+        val response = (result as ApiResult.Success).data
+        assertTrue(response.allSucceeded)
+        assertEquals(1, response.summary.succeeded)
+        val created = response.results.single()
+        assertEquals(0, created.inputIndex)
+        // The id is what gets stored as wallet_record_id and makes the push terminal.
+        assertEquals("00000000-0000-4000-8000-000000000001", created.id)
+        assertEquals(-1.0, created.record!!.amount.value, 0.001)
     }
 }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -64,7 +65,12 @@ class DashboardViewModel @Inject constructor(
     )
 
     init {
-        refresh()
+        // Re-check whenever the stored token changes rather than only once at construction:
+        // connecting in Settings previously left this screen showing "Token status unknown"
+        // until the ViewModel happened to be recreated.
+        viewModelScope.launch {
+            settingsRepository.hasToken.distinctUntilChanged().collect { refresh() }
+        }
     }
 
     /** Re-checks token validity and the rate-limit budget. Safe to call repeatedly; costs 1-2 API calls. */

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.shovon.bdparser.TransactionType
+import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
@@ -29,6 +30,7 @@ import me.shovon.sms2wallet.presentation.navigation.Sms2WalletDestination
 class TransactionDetailViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val walletSyncRepository: WalletSyncRepository,
+    private val pushScheduler: PushScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -64,10 +66,16 @@ class TransactionDetailViewModel @Inject constructor(
     }
 
     fun onMerchantChange(value: String) { _uiState.value = _uiState.value.copy(merchant = value) }
-    fun onAmountChange(value: String) { _uiState.value = _uiState.value.copy(amountText = value) }
+    // Clearing the field's error as soon as the user edits it keeps a stale complaint from
+    // sitting under a value they have already corrected.
+    fun onAmountChange(value: String) {
+        _uiState.value = _uiState.value.copy(amountText = value, amountError = null)
+    }
     fun onDirectionChange(value: TransactionDirection) { _uiState.value = _uiState.value.copy(direction = value) }
     fun onCategoryChange(value: String) { _uiState.value = _uiState.value.copy(category = value) }
-    fun onAccountChange(value: String) { _uiState.value = _uiState.value.copy(accountName = value) }
+    fun onAccountChange(value: String) {
+        _uiState.value = _uiState.value.copy(accountName = value, accountError = null)
+    }
     fun onNoteChange(value: String) { _uiState.value = _uiState.value.copy(note = value) }
 
     /**
@@ -82,12 +90,12 @@ class TransactionDetailViewModel @Inject constructor(
 
         val amount = parsePositiveAmount(state.amountText)
         if (amount == null) {
-            _uiState.value = state.copy(errorMessage = "Enter an amount greater than zero.")
+            _uiState.value = state.copy(amountError = "Enter an amount greater than zero.")
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = state.copy(isSaving = true, errorMessage = null)
+            _uiState.value = state.copy(isSaving = true, errorMessage = null, amountError = null, accountError = null)
 
             val existing = transactionRepository.findById(id)
             if (existing == null) {
@@ -102,7 +110,7 @@ class TransactionDetailViewModel @Inject constructor(
                 // can never resolve, so refuse here where the user can still fix it.
                 _uiState.value = state.copy(
                     isSaving = false,
-                    errorMessage = "Pick a Wallet account first - there is nowhere to push this yet.",
+                    accountError = "Pick an account - there is nowhere to push this yet.",
                 )
                 return@launch
             }
@@ -123,8 +131,23 @@ class TransactionDetailViewModel @Inject constructor(
                     updatedAt = System.currentTimeMillis(),
                 )
             )
-            transactionRepository.approveForSend(id)
+            if (transactionRepository.approveForSend(id)) pushScheduler.schedule()
             _uiState.value = _uiState.value.copy(isSaving = false)
+            onDone()
+        }
+    }
+
+    /**
+     * Dismisses this transaction from the review queue without pushing it.
+     *
+     * Offered here as well as by swiping the queue row, because the review sheet is exactly
+     * where a user decides a parsed transaction is not worth keeping - making them back out and
+     * swipe instead would be a dead end.
+     */
+    fun dismiss(onDone: () -> Unit) {
+        val id = transactionId ?: return
+        viewModelScope.launch {
+            transactionRepository.dismiss(id)
             onDone()
         }
     }

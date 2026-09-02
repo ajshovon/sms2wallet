@@ -23,7 +23,9 @@ import me.shovon.sms2wallet.presentation.model.ConnectionStatus
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
+import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
+import me.shovon.sms2wallet.presentation.util.TimeFormatter
 
 /**
  * Settings backed by DataStore, the Keystore-encrypted token store, and Room.
@@ -44,6 +46,9 @@ class SettingsViewModel @Inject constructor(
     /** Screen-local bits with no home in the data layer: what is typed, and the last test result. */
     private val connectionState = MutableStateFlow(WalletConnectionUiState())
 
+    /** Sync progress/error; the counts and timestamp themselves come from Room and DataStore. */
+    private val syncState = MutableStateFlow(WalletCatalogueUiState())
+
     val uiState: StateFlow<SettingsUiState> = combine(
         combine(
             settingsRepository.enabledParserNames,
@@ -53,7 +58,12 @@ class SettingsViewModel @Inject constructor(
         combine(
             transactionRepository.observeDistinctSources(),
             walletSyncRepository.accounts,
-        ) { sources, accounts -> sources to accounts },
+            walletSyncRepository.categories,
+            settingsRepository.lastCatalogueSyncAt,
+            syncState,
+        ) { sources, accounts, categories, lastSyncedAt, sync ->
+            CatalogueBits(sources, accounts, categories, lastSyncedAt, sync)
+        },
         combine(
             settingsRepository.reminderEnabled,
             settingsRepository.reminderTimeMinutes,
@@ -63,19 +73,23 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.hasToken,
     ) { parserBits, sourceBits, reminderBits, connection, hasToken ->
         val (enabledNames, autoPushNames, mappings) = parserBits
-        val (sources, walletAccounts) = sourceBits
+        val sources = sourceBits.sources
+        val walletAccounts = sourceBits.accounts
         val (reminderEnabled, reminderMinutes, reminderThreshold) = reminderBits
 
         val accountNames = walletAccounts.map { it.name }
         val mappedNameByBank = mappings.associateBy({ it.bankName }, { it.walletAccountName })
 
         SettingsUiState(
-            walletConnection = connection.copy(
-                // Show a stand-in for a stored token rather than the token itself. An empty
-                // field with a token saved would read as "not connected"; the real value must
-                // never leave the Keystore-backed store.
-                tokenInput = if (connection.tokenInput.isEmpty() && hasToken) STORED_TOKEN_PLACEHOLDER
-                else connection.tokenInput,
+            // The field is left genuinely empty when a token is stored, and the fact that one
+            // exists is carried by hasStoredToken instead. Pre-filling it with a mask made the
+            // mask itself editable: typing after it produced a "token" of bullet characters,
+            // which the API then rejected with a header-encoding error.
+            walletConnection = connection.copy(hasStoredToken = hasToken),
+            catalogue = sourceBits.sync.copy(
+                accountCount = sourceBits.accounts.size,
+                categoryCount = sourceBits.categories.size,
+                lastSyncedLabel = TimeFormatter.relativeLabel(sourceBits.lastSyncedAt),
             ),
             parserSettings = BankParserFactory.getAllParsers().map { parser ->
                 val name = parser.getBankName()
@@ -148,13 +162,11 @@ class SettingsViewModel @Inject constructor(
      */
     fun testConnection() {
         viewModelScope.launch {
-            val typed = connectionState.value.tokenInput
+            val typed = connectionState.value.tokenInput.trim()
             connectionState.value = connectionState.value.copy(isTesting = true)
 
-            // The placeholder means "keep whatever is stored"; only a genuinely new value is saved.
-            if (typed.isNotBlank() && typed != STORED_TOKEN_PLACEHOLDER) {
-                settingsRepository.saveToken(typed.trim())
-            }
+            // An empty field means "test the token already stored"; anything typed replaces it.
+            if (typed.isNotBlank()) settingsRepository.saveToken(typed)
 
             val status = when (val result = walletApiClient.validateToken()) {
                 is ApiResult.Success -> ConnectionStatus.Success
@@ -172,9 +184,45 @@ class SettingsViewModel @Inject constructor(
 
             // A valid token is the first moment the account/category pickers can be populated.
             if (status is ConnectionStatus.Success) {
-                walletSyncRepository.refreshAccounts()
-                walletSyncRepository.refreshCategories()
+                // Clear the field once saved, so the token is not left sitting in UI state.
+                connectionState.value = connectionState.value.copy(tokenInput = "")
+                walletSyncRepository.refreshAll()
             }
+        }
+    }
+
+    /**
+     * Re-pulls accounts and categories from Wallet.
+     *
+     * Manual rather than automatic on every screen open: the catalogue changes rarely, and the
+     * API allows 300 requests/hour shared with the pushes that actually matter, so silently
+     * spending two of them each time Settings is opened would be a poor trade.
+     */
+    fun syncWalletData() {
+        if (syncState.value.isSyncing) return
+        viewModelScope.launch {
+            syncState.value = syncState.value.copy(isSyncing = true, errorMessage = null)
+            val message = when (val result = walletSyncRepository.refreshAll()) {
+                is ApiResult.Success -> {
+                    // A successful sync is itself proof the token works, so don't leave the
+                    // connection status above it contradicting that with "Not tested yet".
+                    connectionState.value = connectionState.value.copy(status = ConnectionStatus.Success)
+                    null
+                }
+                is ApiResult.Unauthorized -> {
+                    connectionState.value = connectionState.value.copy(
+                        status = ConnectionStatus.Failed("Wallet rejected this token (401 Unauthorized)")
+                    )
+                    "Wallet rejected the saved token. Enter a new one above."
+                }
+                is ApiResult.SyncInProgress ->
+                    "Wallet is still doing its first sync - try again in ${result.retryAfterMinutes ?: DEFAULT_RETRY_MINUTES} minutes."
+                is ApiResult.RateLimited -> "Rate limited - try again shortly."
+                is ApiResult.NetworkError -> "Couldn't reach Wallet. Check your connection."
+                is ApiResult.HttpError -> "Wallet returned an error (${result.status})."
+                is ApiResult.InvalidRequest -> result.message
+            }
+            syncState.value = syncState.value.copy(isSyncing = false, errorMessage = message)
         }
     }
 
@@ -250,9 +298,15 @@ class SettingsViewModel @Inject constructor(
         const val STOP_TIMEOUT_MILLIS = 5_000L
         const val MINUTES_PER_HOUR = 60
 
-        /** Stands in for an already-stored token; never the real value. */
-        const val STORED_TOKEN_PLACEHOLDER = "••••••••••••••••"
-
         const val DEFAULT_RETRY_MINUTES = 5
     }
+
+    /** Groups the catalogue-related flows so the outer `combine` stays within its arity. */
+    private data class CatalogueBits(
+        val sources: List<me.shovon.sms2wallet.data.local.dao.TransactionSource>,
+        val accounts: List<me.shovon.sms2wallet.data.local.entity.WalletAccountEntity>,
+        val categories: List<me.shovon.sms2wallet.data.local.entity.WalletCategoryEntity>,
+        val lastSyncedAt: Long,
+        val sync: WalletCatalogueUiState,
+    )
 }

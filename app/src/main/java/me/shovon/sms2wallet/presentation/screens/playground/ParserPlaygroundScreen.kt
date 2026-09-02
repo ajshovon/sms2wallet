@@ -7,18 +7,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,7 +25,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.components.AppTextField
+import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
+import me.shovon.sms2wallet.presentation.components.SectionHeader
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
+import me.shovon.sms2wallet.presentation.components.groupedRowShape
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.model.ParserMatchResultUiState
 import me.shovon.sms2wallet.presentation.model.ParserPlaygroundUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
@@ -72,39 +76,52 @@ fun ParserPlaygroundContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(
+                start = Spacing.lg,
+                end = Spacing.lg,
+                top = Spacing.sm,
+                bottom = Spacing.xxl
+            )
         ) {
-            item {
-                OutlinedTextField(
+            item(key = "sender") {
+                AppTextField(
+                    label = "Sender",
                     value = state.senderInput,
                     onValueChange = onSenderChange,
-                    label = { Text("Sender") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "e.g. bKash"
                 )
             }
-            item {
-                OutlinedTextField(
+            item(key = "body") {
+                AppTextField(
+                    label = "SMS body",
                     value = state.bodyInput,
                     onValueChange = onBodyChange,
-                    label = { Text("SMS body") },
-                    minLines = 4,
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "Paste the full message",
+                    singleLine = false
                 )
             }
-            item {
+            item(key = "run") {
                 Button(
                     onClick = onRun,
                     enabled = state.bodyInput.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.sm)
                 ) {
                     Text("Run parsers")
                 }
             }
             if (state.hasRun) {
-                items(state.results) { result ->
-                    ParserResultCard(result)
+                item(key = "results-header") {
+                    SectionHeader(
+                        title = "Results",
+                        supportingText = "${state.results.count { it.matched }} of ${state.results.size} parsers matched",
+                        modifier = Modifier.padding(top = Spacing.xl)
+                    )
+                }
+                itemsIndexed(state.results, key = { _, r -> r.providerName }) { index, result ->
+                    if (index > 0) GroupedRowDivider()
+                    ParserResultCard(result = result, index = index, count = state.results.size)
                 }
             }
         }
@@ -112,16 +129,21 @@ fun ParserPlaygroundContent(
 }
 
 @Composable
-private fun ParserResultCard(result: ParserMatchResultUiState) {
-    Card(
+private fun ParserResultCard(result: ParserMatchResultUiState, index: Int, count: Int) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = if (result.matched) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        shape = groupedRowShape(index = index, count = count),
+        // A match is tinted so the eye can find it without reading every provider name.
+        color = if (result.matched) {
+            MaterialTheme.colorScheme.primaryContainer
         } else {
-            CardDefaults.cardColors()
+            groupedSurfaceColor()
         }
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs)
+        ) {
             ParserResultHeader(result)
             if (result.matched) {
                 result.extractedFields.forEach { field ->

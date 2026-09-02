@@ -110,4 +110,16 @@ fun TransactionEntity.toDetailUiState(
     availableAccounts = availableAccounts,
     note = reference.orEmpty(),
     providerName = bankName,
+    sourceSummary = buildString {
+        append(bankName)
+        if (!accountLast4.isNullOrBlank()) {
+            append(" •••• ")
+            append(accountLast4)
+        }
+        append(" • ")
+        append(TimeFormatter.dayAndTimeLabel(timestamp))
+    },
+    smsPreview = smsBody.takeIf { it.isNotBlank() },
+    isSuspectedDuplicate = suspectedDuplicateOfId != null,
+    needsVerification = pushState == PushState.NEEDS_VERIFY.name,
 )

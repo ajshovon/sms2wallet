@@ -2,7 +2,6 @@ package me.shovon.sms2wallet.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,7 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
  * Standard empty-state layout used by every list screen (Review queue, Activity log,
@@ -35,23 +35,23 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(PaddingValues(32.dp)),
+            .padding(Spacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(IconSize.xl),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.size(16.dp))
+        Spacer(Modifier.size(Spacing.lg))
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.size(8.dp))
+        Spacer(Modifier.size(Spacing.sm))
         Text(
             text = description,
             style = MaterialTheme.typography.bodyMedium,
@@ -59,7 +59,7 @@ fun EmptyState(
             textAlign = TextAlign.Center
         )
         if (actionLabel != null && onAction != null) {
-            Spacer(Modifier.size(24.dp))
+            Spacer(Modifier.size(Spacing.xl))
             Button(onClick = onAction) {
                 Text(actionLabel)
             }

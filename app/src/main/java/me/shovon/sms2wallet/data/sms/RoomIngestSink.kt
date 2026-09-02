@@ -47,6 +47,13 @@ class RoomIngestSink(
     private val categoryRuleDao: CategoryRuleDao,
     private val unmatchedSmsDao: UnmatchedSmsDao,
     private val autoPushBankNames: suspend () -> Set<String>,
+    /**
+     * Invoked after a row is stored in [PushState.QUEUED], to kick off the send.
+     *
+     * A callback rather than a direct `PushScheduler` dependency so this class stays a plain
+     * unit-testable object with no Android/WorkManager types in its constructor.
+     */
+    private val onQueued: () -> Unit = {},
     private val debugLog: (String) -> Unit = { message -> Log.d(TAG, message) },
 ) : IngestSink {
 
@@ -110,7 +117,8 @@ class RoomIngestSink(
         }
 
         if (resolvedPushState == PushState.QUEUED) {
-            // TODO(push-worker): enqueue the WorkManager push job for `insertedId` here.
+            // An auto-pushed row is only queued here; this is what actually starts the send.
+            onQueued()
         }
     }
 

@@ -53,6 +53,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setLastScannedTimestamp(timestamp: Long) = appPreferences.setLastScannedTimestamp(timestamp)
     suspend fun setScanAllTime(scanAllTime: Boolean) = appPreferences.setScanAllTime(scanAllTime)
 
+    // ---- Wallet catalogue -----------------------------------------------------
+
+    val lastCatalogueSyncAt: Flow<Long> = appPreferences.lastCatalogueSyncAt
+
     // ---- Wallet API token -----------------------------------------------------
 
     /** True once an (encrypted) token is stored, without ever decrypting/exposing it. */

@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MarkEmailRead
-import androidx.compose.material3.Card
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -20,7 +22,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import me.shovon.sms2wallet.presentation.components.EmptyState
+import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
+import me.shovon.sms2wallet.presentation.components.groupedRowShape
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.UnmatchedSmsScreenUiState
@@ -41,6 +50,21 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
             }
         }
     ) { padding ->
+        // Same guard as the review queue: while the first emission is in flight the list is
+        // empty but not *known* to be empty, and flashing an empty state reads as "nothing
+        // here" rather than "still loading".
+        if (state.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Sms2WalletScaffold
+        }
+
         if (state.items.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.MarkEmailRead,
@@ -57,26 +81,51 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(
+                start = Spacing.lg,
+                end = Spacing.lg,
+                top = Spacing.sm,
+                bottom = Spacing.xxl
+            )
         ) {
-            items(state.items, key = { it.id }) { item ->
-                UnmatchedSmsRow(item)
+            itemsIndexed(state.items, key = { _, item -> item.id }) { index, item ->
+                if (index > 0) GroupedRowDivider()
+                UnmatchedSmsRow(item = item, index = index, count = state.items.size)
             }
         }
     }
 }
 
 @Composable
-private fun UnmatchedSmsRow(item: UnmatchedSmsUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(text = item.sender, style = MaterialTheme.typography.titleSmall)
-            Text(text = item.bodyPreview, style = MaterialTheme.typography.bodyMedium)
+private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = groupedRowShape(index = index, count = count),
+        color = groupedSurfaceColor()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = item.sender,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = item.receivedAtLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
-                text = item.receivedAtLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = item.bodyPreview,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs)
             )
         }
     }

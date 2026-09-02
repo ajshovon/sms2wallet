@@ -12,3 +12,6 @@ captures/
 *.jks
 *.keystore
 *.bak
+.claude/
+.agents/
+skills-lock.json

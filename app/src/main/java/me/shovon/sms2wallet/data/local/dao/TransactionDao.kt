@@ -166,6 +166,31 @@ interface TransactionDao {
     }
 
     /**
+     * Returns a claimed row to [PushState.QUEUED] after an attempt that provably never reached
+     * the server (connection refused, DNS failure, rate-limited before dispatch, no token).
+     *
+     * This is the ONLY path back into `QUEUED` from `SENDING`, and it is deliberately narrow.
+     * It is guarded on `push_state = SENDING`, so it can never resurrect a row that has since
+     * been marked `PUSHED` - which is what keeps the single-send guarantee intact. Callers must
+     * NOT use it for an ambiguous outcome (a timeout after the request was written): those go to
+     * [PushState.NEEDS_VERIFY] and are resolved by asking the server what happened.
+     */
+    @Query(
+        """
+        UPDATE transactions
+        SET push_state = :queued, last_error = :error, updated_at = :now
+        WHERE id = :id AND push_state = :sending
+        """
+    )
+    suspend fun requeueUnsent(
+        id: Long,
+        error: String?,
+        now: Long,
+        queued: PushState = PushState.QUEUED,
+        sending: PushState = PushState.SENDING
+    ): Int
+
+    /**
      * Rows that have been sitting in [PushState.SENDING] since before [olderThanMillis] (an
      * absolute epoch-millis cutoff, not a duration) - candidates for reconciliation because the
      * app most likely died or lost connectivity mid-request. Callers must resolve these via
@@ -216,6 +241,34 @@ interface TransactionDao {
         dayEndMillis: Long,
         pushed: PushState = PushState.PUSHED
     ): Flow<Int>
+
+    /**
+     * Dismisses every row currently in the review queue in one statement.
+     *
+     * The `WHERE` clause is deliberately the same state set as [observeReviewQueue]: whatever
+     * that query shows is exactly what this clears, so the user cannot be told "12 to review"
+     * and have a different 12 dismissed. Rows in [PushState.SENDING] or [PushState.PUSHED] are
+     * outside that set and are therefore untouchable here, which is what keeps a bulk dismiss
+     * from ever racing the send pipeline.
+     *
+     * @return how many rows were actually dismissed.
+     */
+    @Query(
+        """
+        UPDATE transactions
+        SET push_state = :dismissed, last_error = :reason, updated_at = :now
+        WHERE push_state IN (:parsed, :failedRetryable, :failedPermanent, :needsVerify)
+        """
+    )
+    suspend fun dismissAllReviewable(
+        reason: String,
+        now: Long,
+        dismissed: PushState = PushState.DISMISSED,
+        parsed: PushState = PushState.PARSED,
+        failedRetryable: PushState = PushState.FAILED_RETRYABLE,
+        failedPermanent: PushState = PushState.FAILED_PERMANENT,
+        needsVerify: PushState = PushState.NEEDS_VERIFY
+    ): Int
 
     /**
      * Every distinct (bank, last-4) pair the app has ever parsed a transaction from, for the

@@ -4,33 +4,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
+import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.util.MoneyFormatter
 
 /**
- * Shared form used by both the transaction detail/edit sheet (Review queue) and the
- * add-cash-expense sheet: amount, expense/income toggle, merchant, category, account, note.
+ * Shared editable form for a transaction, used by the review sheet and the add-cash-expense
+ * sheet.
+ *
+ * Ordered by how much each field matters rather than by how the data happens to be stored:
+ * the amount and its direction come first and are typographically the largest thing on screen,
+ * then where the money goes (category, account), then the optional note. Every control is built
+ * from [AppTextField]/[PickerField], so labels, fills, borders, heights and error treatment are
+ * identical across the two sheets.
+ *
+ * Form-level errors are rendered by the host screen above this form, not here, so a failed save
+ * shows one summary rather than the same sentence twice.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionEditForm(
     state: TransactionDetailUiState,
@@ -42,101 +42,75 @@ fun TransactionEditForm(
     onNoteChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OutlinedTextField(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        AppTextField(
+            label = "Amount",
             value = state.amountText,
             onValueChange = onAmountChange,
-            label = { Text("Amount (৳)") },
+            placeholder = "0.00",
+            prefix = MoneyFormatter.TAKA_SYMBOL,
+            errorText = state.amountError,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            // The amount is the number the user is really checking, so it is set in a heavier,
+            // larger style than the rest of the form.
+            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
         )
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            TransactionDirection.entries.forEachIndexed { index, direction ->
-                SegmentedButton(
-                    selected = state.direction == direction,
-                    onClick = { onDirectionChange(direction) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = TransactionDirection.entries.size)
-                ) {
-                    Text(if (direction == TransactionDirection.EXPENSE) "Expense" else "Income")
+        FieldScaffold(label = "Type") {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                TransactionDirection.entries.forEachIndexed { index, direction ->
+                    SegmentedButton(
+                        selected = state.direction == direction,
+                        onClick = { onDirectionChange(direction) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = TransactionDirection.entries.size
+                        )
+                    ) {
+                        Text(if (direction == TransactionDirection.EXPENSE) "Expense" else "Income")
+                    }
                 }
             }
         }
 
-        OutlinedTextField(
+        AppTextField(
+            label = "Merchant",
             value = state.merchant,
             onValueChange = onMerchantChange,
-            label = { Text("Merchant") },
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "Who was paid"
         )
 
-        DropdownField(
+        PickerField(
             label = "Category",
-            selected = state.category,
+            value = state.category,
             options = state.availableCategories,
-            onSelected = onCategoryChange
+            onSelect = onCategoryChange,
+            placeholder = "Choose a category",
+            searchPlaceholder = "Search categories",
+            supportingText = if (state.availableCategories.isEmpty()) {
+                "Sync your Wallet account in Settings to load categories."
+            } else {
+                null
+            }
         )
 
-        DropdownField(
+        PickerField(
             label = "Account",
-            selected = state.accountName,
+            value = state.accountName,
             options = state.availableAccounts,
-            onSelected = onAccountChange
+            onSelect = onAccountChange,
+            placeholder = "Choose an account",
+            searchPlaceholder = "Search accounts",
+            errorText = state.accountError
         )
 
-        OutlinedTextField(
+        AppTextField(
+            label = "Note",
             value = state.note,
             onValueChange = onNoteChange,
-            label = { Text("Note (optional)") },
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "Anything worth remembering",
+            isOptional = true,
+            singleLine = false
         )
-
-        if (state.errorMessage != null) {
-            Text(
-                text = state.errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DropdownField(
-    label: String,
-    selected: String,
-    options: List<String>,
-    onSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it }
-    ) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(option)
-                        expanded = false
-                    }
-                )
-            }
-        }
     }
 }

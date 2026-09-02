@@ -5,11 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,7 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
+import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
  * "Reminders" settings section: daily reminder on/off, a time picker, and a stepper for
@@ -44,18 +47,28 @@ fun RemindersSection(
 ) {
     var showTimePicker by remember { mutableStateOf(false) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    GroupedContainer {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Daily reminder", style = MaterialTheme.typography.titleMedium)
+                Text(
+                text = "Daily reminder",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+            )
                 Switch(checked = state.isEnabled, onCheckedChange = onEnabledChange)
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = Spacing.sm),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -83,14 +96,16 @@ fun RemindersSection(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { onSkipCountChange((state.skipIfAlreadyLoggedCount - 1).coerceAtLeast(0)) },
-                        enabled = state.isEnabled
+                        enabled = state.isEnabled,
+                        modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
                         Icon(Icons.Filled.Remove, contentDescription = "Decrease")
                     }
                     Text(state.skipIfAlreadyLoggedCount.toString(), style = MaterialTheme.typography.titleMedium)
                     IconButton(
                         onClick = { onSkipCountChange((state.skipIfAlreadyLoggedCount + 1).coerceAtMost(20)) },
-                        enabled = state.isEnabled
+                        enabled = state.isEnabled,
+                        modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Increase")
                     }

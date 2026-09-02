@@ -13,12 +13,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.theme.Spacing
+import androidx.compose.foundation.layout.Arrangement
+import me.shovon.sms2wallet.presentation.components.FormErrorSummary
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.components.TransactionEditForm
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
@@ -56,16 +57,12 @@ fun AddCashExpenseScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = Spacing.lg)
+                .padding(top = Spacing.sm, bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
-            state.errorMessage?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
+            state.errorMessage?.let { FormErrorSummary(it) }
+
             TransactionEditForm(
                 state = state,
                 onMerchantChange = viewModel::onMerchantChange,

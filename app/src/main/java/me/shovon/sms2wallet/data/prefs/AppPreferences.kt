@@ -116,6 +116,21 @@ class AppPreferences(
     /** When true, the next backfill ignores [lastScannedTimestamp] and scans the whole inbox. */
     val scanAllTime: Flow<Boolean> = safeData.map { it[SCAN_ALL_TIME_KEY] ?: false }
 
+    // ---- Wallet catalogue (accounts + categories) --------------------------------
+
+    /**
+     * When the Wallet account/category catalogue was last pulled from the API, or 0 if never.
+     *
+     * Tracked separately from [lastScannedTimestamp], which is about the SMS inbox: the two
+     * answer different questions ("is my Wallet list current?" vs "have my messages been read?")
+     * and go stale for entirely different reasons.
+     */
+    val lastCatalogueSyncAt: Flow<Long> = safeData.map { it[LAST_CATALOGUE_SYNC_KEY] ?: 0L }
+
+    suspend fun setLastCatalogueSyncAt(timestamp: Long) {
+        dataStore.edit { it[LAST_CATALOGUE_SYNC_KEY] = timestamp }
+    }
+
     suspend fun setLastScannedTimestamp(timestamp: Long) {
         dataStore.edit { prefs -> prefs[LAST_SCANNED_TIMESTAMP_KEY] = timestamp }
     }
@@ -132,5 +147,6 @@ class AppPreferences(
         val REMINDER_SUPPRESS_THRESHOLD_KEY = intPreferencesKey("reminder_suppress_threshold")
         val LAST_SCANNED_TIMESTAMP_KEY = longPreferencesKey("last_scanned_timestamp")
         val SCAN_ALL_TIME_KEY = booleanPreferencesKey("scan_all_time")
+        val LAST_CATALOGUE_SYNC_KEY = longPreferencesKey("last_catalogue_sync_at")
     }
 }

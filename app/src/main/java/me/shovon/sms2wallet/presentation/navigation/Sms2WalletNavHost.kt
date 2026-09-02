@@ -7,7 +7,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
@@ -95,8 +98,18 @@ fun Sms2WalletRootScreen(navController: NavHostController = rememberNavControlle
             composable(Sms2WalletDestination.ReviewQueue.route) {
                 val viewModel: ReviewQueueViewModel = hiltViewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val snackbarHostState = remember { SnackbarHostState() }
+
+                // Confirms bulk actions ("Dismissed 12 transactions"), which are otherwise
+                // silent: the rows simply vanish, and the user has no way to tell a successful
+                // dismiss-all from a crash.
+                LaunchedEffect(viewModel) {
+                    viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+
                 ReviewQueueContent(
                     state = state,
+                    snackbarHostState = snackbarHostState,
                     onOpenTransaction = { id ->
                         navController.navigate(Sms2WalletDestination.TransactionDetail.createRoute(id))
                     },
@@ -104,7 +117,9 @@ fun Sms2WalletRootScreen(navController: NavHostController = rememberNavControlle
                     onDismiss = viewModel::dismiss,
                     onToggleMultiSelect = viewModel::toggleMultiSelect,
                     onToggleSelected = viewModel::setSelected,
-                    onBulkPush = viewModel::approveSelected
+                    onBulkPush = viewModel::approveSelected,
+                    onBulkDismiss = viewModel::dismissSelected,
+                    onDismissAll = viewModel::dismissAll
                 )
             }
             composable(Sms2WalletDestination.Settings.route) {
@@ -116,6 +131,7 @@ fun Sms2WalletRootScreen(navController: NavHostController = rememberNavControlle
                     onTokenChange = viewModel::onTokenChange,
                     onToggleTokenVisibility = viewModel::onToggleTokenVisibility,
                     onTestConnection = viewModel::testConnection,
+                    onSyncWalletData = viewModel::syncWalletData,
                     onParserEnabledChange = viewModel::setParserEnabled,
                     onParserAutoPushChange = viewModel::setParserAutoPush,
                     onAccountMappingChange = viewModel::setAccountMapping,

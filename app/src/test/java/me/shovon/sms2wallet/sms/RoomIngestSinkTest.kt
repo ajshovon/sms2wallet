@@ -368,6 +368,36 @@ private class FakeTransactionDao : TransactionDao {
     override fun observePushedCount(dayStartMillis: Long, dayEndMillis: Long, pushed: PushState): Flow<Int> =
         flowOf(rows.values.count { it.pushState == pushed.name && it.updatedAt in dayStartMillis..dayEndMillis })
 
+    override suspend fun requeueUnsent(
+        id: Long,
+        error: String?,
+        now: Long,
+        queued: PushState,
+        sending: PushState,
+    ): Int {
+        val row = rows[id] ?: return 0
+        if (row.pushState != sending.name) return 0
+        rows[id] = row.copy(pushState = queued.name, lastError = error, updatedAt = now)
+        return 1
+    }
+
+    override suspend fun dismissAllReviewable(
+        reason: String,
+        now: Long,
+        dismissed: PushState,
+        parsed: PushState,
+        failedRetryable: PushState,
+        failedPermanent: PushState,
+        needsVerify: PushState,
+    ): Int {
+        val reviewable = setOf(parsed.name, failedRetryable.name, failedPermanent.name, needsVerify.name)
+        val targets = rows.filterValues { it.pushState in reviewable }
+        targets.forEach { (id, row) ->
+            rows[id] = row.copy(pushState = dismissed.name, lastError = reason, updatedAt = now)
+        }
+        return targets.size
+    }
+
     override fun observeDistinctSources(): Flow<List<TransactionSource>> = flowOf(
         rows.values
             .map { TransactionSource(bankName = it.bankName, accountLast4 = it.accountLast4) }

@@ -1,24 +1,24 @@
 package me.shovon.sms2wallet.presentation.screens.review
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -32,15 +32,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.MoneyText
 import me.shovon.sms2wallet.presentation.components.StatusBadge
+import me.shovon.sms2wallet.presentation.components.groupedRowShape
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
 import me.shovon.sms2wallet.presentation.model.ReviewTransactionUiState
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
- * One Review-queue row. Swipe right to push, swipe left to dismiss; tap opens the detail
- * sheet. In multi-select mode swipes are disabled and a checkbox is shown instead.
+ * One Review-queue row, rendered as part of a grouped day list rather than as its own card.
+ *
+ * Each row previously sat in a standalone `Card`, which gave a screen of unrelated islands and
+ * one shadow per transaction. Here the day group is the container: [index]/[count] round only
+ * the group's outer corners, so the rows read as a single list and the eye can scan the amount
+ * column without crossing an edge on every line.
+ *
+ * Swipe right pushes, swipe left dismisses; in multi-select mode swipes are off and a checkbox
+ * takes the leading slot.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,16 +64,22 @@ fun TransactionCard(
     onClick: () -> Unit,
     onPush: () -> Unit,
     onDismiss: () -> Unit,
+    index: Int,
+    count: Int,
     modifier: Modifier = Modifier,
     isMultiSelectMode: Boolean = false,
     isSelected: Boolean = false,
     onSelectedChange: (Boolean) -> Unit = {}
 ) {
+    val shape = groupedRowShape(index = index, count = count)
+
     if (isMultiSelectMode) {
-        TransactionCardContent(
+        TransactionRowContent(
             transaction = transaction,
+            shape = shape,
             modifier = modifier.fillMaxWidth(),
             onClick = { onSelectedChange(!isSelected) },
+            isSelected = isSelected,
             leading = {
                 Checkbox(checked = isSelected, onCheckedChange = onSelectedChange)
             }
@@ -99,10 +120,11 @@ fun TransactionCard(
     SwipeToDismissBox(
         state = dismissState,
         modifier = modifier.fillMaxWidth(),
-        backgroundContent = { SwipeBackground(dismissState.dismissDirection) }
+        backgroundContent = { SwipeBackground(dismissState.dismissDirection, shape) }
     ) {
-        TransactionCardContent(
+        TransactionRowContent(
             transaction = transaction,
+            shape = shape,
             modifier = Modifier.fillMaxWidth(),
             onClick = onClick
         )
@@ -111,22 +133,28 @@ fun TransactionCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
-    val (color: Color, icon, alignment, label) = when (direction) {
+private fun SwipeBackground(
+    direction: SwipeToDismissBoxValue,
+    shape: androidx.compose.ui.graphics.Shape
+) {
+    val spec = when (direction) {
         SwipeToDismissBoxValue.StartToEnd -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             icon = Icons.Filled.CheckCircle,
             alignment = Alignment.CenterStart,
             label = "Push"
         )
         SwipeToDismissBoxValue.EndToStart -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
             icon = Icons.Filled.Cancel,
             alignment = Alignment.CenterEnd,
             label = "Dismiss"
         )
         SwipeToDismissBoxValue.Settled -> SwipeBackgroundSpec(
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             icon = null,
             alignment = Alignment.Center,
             label = ""
@@ -135,64 +163,90 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(4.dp)
-            .background(color, shape = MaterialTheme.shapes.medium),
-        contentAlignment = alignment
+            .background(spec.color, shape = shape),
+        contentAlignment = spec.alignment
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = Spacing.xl),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            icon?.let { Icon(it, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface) }
-            if (label.isNotEmpty()) Text(label)
+            spec.icon?.let {
+                Icon(
+                    imageVector = it,
+                    contentDescription = null,
+                    tint = spec.contentColor,
+                    modifier = Modifier.size(IconSize.md)
+                )
+            }
+            if (spec.label.isNotEmpty()) {
+                Text(
+                    text = spec.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = spec.contentColor
+                )
+            }
         }
     }
 }
 
 private data class SwipeBackgroundSpec(
     val color: Color,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    val contentColor: Color,
+    val icon: ImageVector?,
     val alignment: Alignment,
     val label: String
 )
 
 @Composable
-private fun TransactionCardContent(
+private fun TransactionRowContent(
     transaction: ReviewTransactionUiState,
+    shape: androidx.compose.ui.graphics.Shape,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
     leading: @Composable (() -> Unit)? = null
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else groupedSurfaceColor()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .heightIn(min = MinTouchTarget)
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            leading?.let {
-                it()
-                Spacer(Modifier.width(8.dp))
-            }
+            leading?.invoke()
+
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = transaction.merchant, style = MaterialTheme.typography.titleMedium)
-                }
-                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "${transaction.providerName} •••• ${transaction.accountLast4} • ${transaction.timeLabel}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = transaction.merchant,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (transaction.isSuspectedDuplicate || transaction.needsVerification) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = transaction.sourceSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+                if (transaction.needsAttention) {
+                    Row(
+                        modifier = Modifier.padding(top = Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
                         if (transaction.isSuspectedDuplicate) {
-                            StatusBadge(text = "Suspected duplicate", intent = BadgeIntent.WARNING)
+                            StatusBadge(text = "Possible duplicate", intent = BadgeIntent.WARNING)
                         }
                         if (transaction.needsVerification) {
                             StatusBadge(text = "Needs verification", intent = BadgeIntent.INFO)
@@ -200,7 +254,12 @@ private fun TransactionCardContent(
                     }
                 }
             }
-            MoneyText(amount = transaction.amount, direction = transaction.direction, style = MaterialTheme.typography.titleMedium)
+
+            MoneyText(
+                amount = transaction.amount,
+                direction = transaction.direction,
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }

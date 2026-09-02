@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
@@ -25,6 +26,7 @@ import me.shovon.sms2wallet.presentation.model.TransactionDirection
 class AddCashExpenseViewModel @Inject constructor(
     private val walletSyncRepository: WalletSyncRepository,
     private val transactionRepository: TransactionRepository,
+    private val pushScheduler: PushScheduler,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionDetailUiState())
@@ -43,10 +45,14 @@ class AddCashExpenseViewModel @Inject constructor(
     }
 
     fun onMerchantChange(value: String) { _uiState.value = _uiState.value.copy(merchant = value) }
-    fun onAmountChange(value: String) { _uiState.value = _uiState.value.copy(amountText = value) }
+    fun onAmountChange(value: String) {
+        _uiState.value = _uiState.value.copy(amountText = value, amountError = null)
+    }
     fun onDirectionChange(value: TransactionDirection) { _uiState.value = _uiState.value.copy(direction = value) }
     fun onCategoryChange(value: String) { _uiState.value = _uiState.value.copy(category = value) }
-    fun onAccountChange(value: String) { _uiState.value = _uiState.value.copy(accountName = value) }
+    fun onAccountChange(value: String) {
+        _uiState.value = _uiState.value.copy(accountName = value, accountError = null)
+    }
     fun onNoteChange(value: String) { _uiState.value = _uiState.value.copy(note = value) }
 
     /**
@@ -60,18 +66,18 @@ class AddCashExpenseViewModel @Inject constructor(
 
         val amount = runCatching { BigDecimal(state.amountText.trim()) }.getOrNull()
         if (amount == null || amount.signum() <= 0) {
-            _uiState.value = state.copy(errorMessage = "Enter an amount greater than zero.")
+            _uiState.value = state.copy(amountError = "Enter an amount greater than zero.")
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = state.copy(isSaving = true, errorMessage = null)
+            _uiState.value = state.copy(isSaving = true, errorMessage = null, amountError = null, accountError = null)
             val accounts = walletSyncRepository.accounts.first()
             val accountId = accounts.firstOrNull { it.name == state.accountName }?.id
             if (accountId == null) {
                 _uiState.value = state.copy(
                     isSaving = false,
-                    errorMessage = "Pick a Wallet account - connect your token in Settings if the list is empty.",
+                    accountError = "Pick an account - connect your Wallet token in Settings if the list is empty.",
                 )
                 return@launch
             }
@@ -85,6 +91,7 @@ class AddCashExpenseViewModel @Inject constructor(
                 walletAccountId = accountId,
                 walletCategoryId = categories.firstOrNull { it.name == state.category }?.id,
             )
+            pushScheduler.schedule()
             _uiState.value = _uiState.value.copy(isSaving = false)
             onDone()
         }

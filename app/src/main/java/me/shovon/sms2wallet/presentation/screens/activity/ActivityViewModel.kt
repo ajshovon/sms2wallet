@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.ActivityRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.presentation.model.ActivityUiState
@@ -20,6 +21,7 @@ import me.shovon.sms2wallet.presentation.model.toUiState
 class ActivityViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val transactionRepository: TransactionRepository,
+    private val pushScheduler: PushScheduler,
 ) : ViewModel() {
 
     val uiState: StateFlow<ActivityUiState> = activityRepository.observeRecentPushLog()
@@ -36,7 +38,11 @@ class ActivityViewModel @Inject constructor(
      * retryable and never reach here.
      */
     fun retry(transactionId: Long) {
-        viewModelScope.launch { transactionRepository.approveForSend(transactionId) }
+        viewModelScope.launch {
+            // retryFailed, not approveForSend: a permanently-failed row is exactly what this
+            // button exists for, and approveForSend refuses that state.
+            if (transactionRepository.retryFailed(transactionId)) pushScheduler.schedule()
+        }
     }
 
     private companion object {

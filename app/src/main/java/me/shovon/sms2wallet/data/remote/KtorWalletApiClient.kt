@@ -48,6 +48,7 @@ private const val ACCOUNTS_PAGE_LIMIT = 200
 private const val CATEGORIES_PAGE_LIMIT = 200
 private const val RECORDS_SEARCH_LIMIT = 50
 private const val MIN_CREATE_BATCH = 1
+/** `POST /records` accepts `maxItems: 50` per the OpenAPI schema (`PATCH` is the one capped at 10). */
 private const val MAX_CREATE_BATCH = 50
 
 /**
@@ -97,12 +98,12 @@ class KtorWalletApiClient(
 
     override suspend fun listAccounts(): ApiResult<List<WalletAccountDto>> {
         val token = tokenProvider() ?: return ApiResult.Unauthorized
-        return listAllPages("/accounts", ACCOUNTS_PAGE_LIMIT, token, WalletAccountDto.serializer())
+        return listAllPages("/accounts", ACCOUNTS_PAGE_LIMIT, token, WalletAccountDto.serializer(), "accounts")
     }
 
     override suspend fun listCategories(): ApiResult<List<WalletCategoryDto>> {
         val token = tokenProvider() ?: return ApiResult.Unauthorized
-        return listAllPages("/categories", CATEGORIES_PAGE_LIMIT, token, WalletCategoryDto.serializer())
+        return listAllPages("/categories", CATEGORIES_PAGE_LIMIT, token, WalletCategoryDto.serializer(), "categories")
     }
 
     override suspend fun createRecords(requests: List<CreateRecordRequest>): ApiResult<CreateRecordsResponse> {
@@ -117,7 +118,6 @@ class KtorWalletApiClient(
             httpClient.post("$baseUrl/records") {
                 applyAuth(token)
                 contentType(ContentType.Application.Json)
-                parameter("returnData", true)
                 setBody(requests)
             }
         }
@@ -137,7 +137,7 @@ class KtorWalletApiClient(
         accountId: String,
         dayIso: String,
         amount: String,
-        source: String,
+        source: String?,
     ): ApiResult<List<RecordDto>> {
         val token = tokenProvider() ?: return ApiResult.Unauthorized
 
@@ -147,7 +147,9 @@ class KtorWalletApiClient(
                 parameter("accountId", accountId)
                 parameter("recordDate", "eq.$dayIso")
                 parameter("amount", "eq.$amount")
-                parameter("source", "eq.$source")
+                // `source` is not a documented filter; only send it if a caller explicitly asks,
+                // so the default reconciliation query cannot be rejected for an unknown param.
+                if (source != null) parameter("source", "eq.$source")
                 parameter("limit", RECORDS_SEARCH_LIMIT)
             }
         }
@@ -155,8 +157,10 @@ class KtorWalletApiClient(
         return when (outcome) {
             is RawOutcome.Failure -> outcome.result
             is RawOutcome.Ok -> try {
-                val (items, _) = parseListPayload(outcome.bodyText, RecordDto.serializer())
-                ApiResult.Success(items, outcome.rateLimit)
+                ApiResult.Success(
+                    parseListPayload(outcome.bodyText, RecordDto.serializer(), "records").items,
+                    outcome.rateLimit,
+                )
             } catch (e: SerializationException) {
                 ApiResult.HttpError(outcome.status.value, "Unparseable findRecords response: ${e.message}")
             }
@@ -197,6 +201,7 @@ class KtorWalletApiClient(
         pageLimit: Int,
         token: String,
         itemSerializer: KSerializer<T>,
+        arrayKey: String,
     ): ApiResult<List<T>> {
         val accumulated = mutableListOf<T>()
         var offset = 0
@@ -215,14 +220,24 @@ class KtorWalletApiClient(
                 is RawOutcome.Failure -> return outcome.result
                 is RawOutcome.Ok -> {
                     latestRateLimit = outcome.rateLimit ?: latestRateLimit
-                    val (items, nextOffset) = try {
-                        parseListPayload(outcome.bodyText, itemSerializer)
+                    val page = try {
+                        parseListPayload(outcome.bodyText, itemSerializer, arrayKey)
                     } catch (e: SerializationException) {
                         return ApiResult.HttpError(outcome.status.value, "Unparseable list response: ${e.message}")
                     }
+                    val items = page.items
+                    val nextOffset = page.nextOffset
+                    val total = page.total
                     accumulated += items
-                    if (nextOffset == null || items.isEmpty()) break
-                    offset = nextOffset
+                    val next = nextPageOffset(
+                        currentOffset = offset,
+                        pageLimit = pageLimit,
+                        received = items.size,
+                        collected = accumulated.size,
+                        serverNextOffset = nextOffset,
+                        total = total,
+                    ) ?: break
+                    offset = next
                 }
             }
         }
@@ -242,12 +257,53 @@ class KtorWalletApiClient(
      * This makes pagination robust to that naming detail without needing to
      * special-case each endpoint.
      */
-    private fun <T> parseListPayload(bodyText: String, itemSerializer: KSerializer<T>): Pair<List<T>, Int?> {
+    private fun <T> parseListPayload(
+        bodyText: String,
+        itemSerializer: KSerializer<T>,
+        arrayKey: String,
+    ): ListPage<T> {
         val root = json.parseToJsonElement(bodyText).jsonObject
-        val nextOffset = root["nextOffset"]?.jsonPrimitive?.intOrNull
-        val arrayField = root.values.firstOrNull { it is JsonArray } as? JsonArray ?: JsonArray(emptyList())
-        val items = json.decodeFromJsonElement(ListSerializer(itemSerializer), arrayField)
-        return items to nextOffset
+        // Read the array by its documented name. "First top-level array" is NOT safe here:
+        // GET /records answers with {appliedRecordDateFilters, limit, offset, records}, and
+        // appliedRecordDateFilters is an array of filter strings that comes first - picking it
+        // made every reconciliation lookup fail to parse, so a NEEDS_VERIFY row could never be
+        // resolved. Falling back to the first array only when the named key is missing keeps
+        // the old tolerance for a differently-wrapped payload.
+        val arrayField = root[arrayKey] as? JsonArray
+            ?: root.values.firstOrNull { it is JsonArray } as? JsonArray
+            ?: JsonArray(emptyList())
+        return ListPage(
+            items = json.decodeFromJsonElement(ListSerializer(itemSerializer), arrayField),
+            nextOffset = root["nextOffset"]?.jsonPrimitive?.intOrNull,
+            total = root["total"]?.jsonPrimitive?.intOrNull,
+        )
+    }
+
+    private data class ListPage<T>(val items: List<T>, val nextOffset: Int?, val total: Int?)
+
+    /**
+     * Offset of the next page, or null when this was the last one.
+     *
+     * The live API paginates with `limit`/`offset` (plus `total` when asked) and does **not**
+     * return a `nextOffset`, so keying the loop off that field alone stopped after a single page
+     * and silently dropped everything beyond it. This advances by the number of rows actually
+     * received and stops on a short page, while still honouring `nextOffset` if the server ever
+     * starts sending one.
+     */
+    private fun nextPageOffset(
+        currentOffset: Int,
+        pageLimit: Int,
+        received: Int,
+        collected: Int,
+        serverNextOffset: Int?,
+        total: Int?,
+    ): Int? = when {
+        received == 0 -> null
+        serverNextOffset != null -> serverNextOffset
+        // A page shorter than the limit is by definition the last one.
+        received < pageLimit -> null
+        total != null && collected >= total -> null
+        else -> currentOffset + received
     }
 
     // ---- Raw request/response handling -----------------------------------

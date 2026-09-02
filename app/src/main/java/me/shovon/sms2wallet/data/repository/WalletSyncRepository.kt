@@ -4,6 +4,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import me.shovon.sms2wallet.data.local.dao.WalletAccountDao
 import me.shovon.sms2wallet.data.local.dao.WalletCategoryDao
+import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.local.entity.WalletAccountEntity
 import me.shovon.sms2wallet.data.local.entity.WalletCategoryEntity
 import me.shovon.sms2wallet.data.remote.ApiResult
@@ -25,7 +26,31 @@ class WalletSyncRepository @Inject constructor(
     private val walletApiClient: WalletApiClient,
     private val walletAccountDao: WalletAccountDao,
     private val walletCategoryDao: WalletCategoryDao,
+    private val appPreferences: AppPreferences,
 ) {
+
+    /**
+     * Refreshes accounts and categories together, and stamps the sync time on success.
+     *
+     * This is what a user needs after creating an account in Wallet: the app caches the
+     * catalogue locally (so pickers work offline and don't spend the hourly request budget on
+     * every sheet open), which means a newly-created account is invisible until something asks
+     * the server again.
+     *
+     * Accounts are fetched first and a failure short-circuits: if the connection is already
+     * broken, spending a second request to prove it again is wasteful, and reporting the first
+     * real error is more useful than the second.
+     */
+    suspend fun refreshAll(): ApiResult<Unit> {
+        val accounts = refreshAccounts()
+        if (accounts !is ApiResult.Success) return accounts
+
+        val categories = refreshCategories()
+        if (categories !is ApiResult.Success) return categories
+
+        appPreferences.setLastCatalogueSyncAt(System.currentTimeMillis())
+        return ApiResult.Success(Unit, categories.rateLimit)
+    }
 
     val accounts: Flow<List<WalletAccountEntity>> = walletAccountDao.observeAll()
     val categories: Flow<List<WalletCategoryEntity>> = walletCategoryDao.observeAll()

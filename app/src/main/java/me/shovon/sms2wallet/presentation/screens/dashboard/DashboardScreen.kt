@@ -16,9 +16,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -30,7 +30,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import me.shovon.sms2wallet.presentation.components.GroupedContainer
+import me.shovon.sms2wallet.presentation.components.SectionDivider
+import me.shovon.sms2wallet.presentation.components.SectionHeader
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.model.DashboardUiState
 import me.shovon.sms2wallet.presentation.model.RateLimitUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
@@ -61,12 +71,17 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(
+                start = Spacing.lg,
+                end = Spacing.lg,
+                top = Spacing.sm,
+                // Clear of the FAB, which floats over the list.
+                bottom = Spacing.xxl * 2
+            )
         ) {
-            item {
+            item(key = "counters") {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     StatCard(
@@ -81,65 +96,110 @@ fun DashboardScreen(
                     )
                 }
             }
-            item {
+
+            item(key = "pending") {
                 PendingReviewCard(
                     pendingCount = state.pendingReviewCount,
-                    onClick = onViewReviewQueue
+                    onClick = onViewReviewQueue,
+                    modifier = Modifier.padding(top = Spacing.md)
                 )
             }
-            item {
-                LastSyncCard(lastSyncLabel = state.lastSyncLabel)
+
+            item(key = "status-header") {
+                SectionHeader(
+                    title = "Status",
+                    modifier = Modifier.padding(top = Spacing.xl)
+                )
             }
-            item {
-                TokenHealthCard(tokenHealth = state.tokenHealth)
-            }
-            item {
-                RateLimitCard(rateLimit = state.rateLimit)
+            // One container for the three status readings rather than three separate cards:
+            // they answer the same question ("is the pipeline healthy?") and belong together.
+            item(key = "status-body") {
+                GroupedContainer {
+                    InfoRow(
+                        icon = Icons.Filled.Sync,
+                        title = "Last sync",
+                        value = state.lastSyncLabel ?: "Never synced yet"
+                    )
+                    SectionDivider(startInset = STATUS_DIVIDER_INSET)
+                    TokenHealthRow(tokenHealth = state.tokenHealth)
+                    SectionDivider(startInset = STATUS_DIVIDER_INSET)
+                    RateLimitRow(rateLimit = state.rateLimit)
+                }
             }
         }
     }
 }
 
+/** Divider inset past the status icons, so the rule starts at the text column. */
+private val STATUS_DIVIDER_INSET = 56.dp
+
+/** One of the two headline counters. A grouped surface, not a Card - no shadow, no competing edge. */
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = value, style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = groupedSurfaceColor()
+    ) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs)
+            )
         }
     }
 }
 
+/**
+ * The one call to action on this screen, so it keeps the filled primary-container treatment
+ * that separates it from the neutral status readings below.
+ */
 @Composable
-private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit) {
-    Card(
+private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Pending review",
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = if (pendingCount == 0) "All caught up" else "$pendingCount transaction${if (pendingCount == 1) "" else "s"} waiting",
+                    text = when (pendingCount) {
+                        0 -> "All caught up"
+                        1 -> "1 transaction waiting"
+                        else -> "$pendingCount transactions waiting"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(top = Spacing.xxs)
                 )
             }
             Text(
                 text = pendingCount.toString(),
                 style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
@@ -147,16 +207,7 @@ private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun LastSyncCard(lastSyncLabel: String?) {
-    InfoRowCard(
-        icon = Icons.Filled.Sync,
-        title = "Last sync",
-        value = lastSyncLabel ?: "Never synced yet"
-    )
-}
-
-@Composable
-private fun TokenHealthCard(tokenHealth: TokenHealth) {
+private fun TokenHealthRow(tokenHealth: TokenHealth) {
     val (icon: ImageVector, label: String) = when (tokenHealth) {
         TokenHealth.VALID -> Icons.Filled.CheckCircle to "Wallet token is valid"
         TokenHealth.EXPIRING_SOON -> Icons.Filled.HourglassTop to "Wallet token expires soon"
@@ -164,53 +215,89 @@ private fun TokenHealthCard(tokenHealth: TokenHealth) {
         TokenHealth.INVALID -> Icons.Filled.Error to "Wallet token is invalid"
         TokenHealth.UNKNOWN -> Icons.Filled.Error to "Token status unknown"
     }
-    InfoRowCard(icon = icon, title = "Token health", value = label)
+    InfoRow(icon = icon, title = "Token health", value = label)
 }
 
+/** Label-over-value status row inside the grouped Status container. */
 @Composable
-private fun InfoRowCard(icon: ImageVector, title: String, value: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-            Column {
-                Text(text = title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(text = value, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RateLimitCard(rateLimit: RateLimitUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "API budget", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "${rateLimit.used} / ${rateLimit.limit} ${rateLimit.windowLabel}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { rateLimit.fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
+private fun InfoRow(icon: ImageVector, title: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = MinTouchTarget)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(IconSize.lg)
+        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = Spacing.xxs)
             )
         }
     }
 }
+
+/**
+ * API budget row. Carries a leading icon like the two rows above it so all three text columns
+ * start on the same x - without it the meter's label hung off the container edge while the
+ * others were inset past their icons.
+ */
+@Composable
+private fun RateLimitRow(rateLimit: RateLimitUiState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Speed,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(IconSize.lg)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "API budget",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${rateLimit.used} / ${rateLimit.limit} ${rateLimit.windowLabel}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            LinearProgressIndicator(
+                progress = { rateLimit.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.sm)
+                    .height(PROGRESS_HEIGHT),
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        }
+    }
+}
+
+private val PROGRESS_HEIGHT = 8.dp
 
 @Preview(name = "Dashboard - Light", showBackground = true)
 @Composable

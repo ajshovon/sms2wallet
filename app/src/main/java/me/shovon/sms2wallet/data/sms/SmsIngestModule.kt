@@ -11,6 +11,7 @@ import me.shovon.sms2wallet.data.local.dao.CategoryRuleDao
 import me.shovon.sms2wallet.data.local.dao.TransactionDao
 import me.shovon.sms2wallet.data.local.dao.UnmatchedSmsDao
 import me.shovon.sms2wallet.data.prefs.AppPreferences
+import me.shovon.sms2wallet.data.push.PushScheduler
 
 /**
  * Binds [IngestSink] to the Room-backed [RoomIngestSink]. [NoOpIngestSink] is kept in the tree
@@ -28,6 +29,7 @@ object SmsIngestModule {
         categoryRuleDao: CategoryRuleDao,
         unmatchedSmsDao: UnmatchedSmsDao,
         appPreferences: AppPreferences,
+        pushScheduler: PushScheduler,
     ): IngestSink = RoomIngestSink(
         transactionDao = transactionDao,
         accountMappingDao = accountMappingDao,
@@ -36,5 +38,6 @@ object SmsIngestModule {
         // Read lazily on every call (mirrors KtorWalletApiClient's tokenProvider) since the user
         // can change which banks auto-push at any time from settings.
         autoPushBankNames = { appPreferences.autoPushParserNames.first() },
+        onQueued = { pushScheduler.schedule() },
     )
 }
