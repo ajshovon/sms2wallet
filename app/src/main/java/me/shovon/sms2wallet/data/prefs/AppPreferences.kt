@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import me.shovon.bdparser.bank.BankParser
+import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.bdparser.bank.BankParserRegistry
 
@@ -116,6 +118,30 @@ class AppPreferences(
     /** When true, the next backfill ignores [lastScannedTimestamp] and scans the whole inbox. */
     val scanAllTime: Flow<Boolean> = safeData.map { it[SCAN_ALL_TIME_KEY] ?: false }
 
+    // ---- Appearance ---------------------------------------------------------------
+
+    /** The user's chosen theme, defaulting to following the system. */
+    val themeMode: Flow<ThemeMode> = safeData.map { ThemeMode.fromName(it[THEME_MODE_KEY]) }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { it[THEME_MODE_KEY] = mode.name }
+    }
+
+    // ---- First-run coaching -------------------------------------------------------
+
+    /**
+     * Whether the user has ever acted on a review row (pushed or dismissed).
+     *
+     * Gates the swipe hint on the review queue. An instruction that never goes away stops being
+     * help and becomes permanent furniture, so it is shown until the gesture has been used once
+     * and then retired.
+     */
+    val hasActedOnReviewQueue: Flow<Boolean> = safeData.map { it[HAS_ACTED_ON_REVIEW_KEY] ?: false }
+
+    suspend fun setHasActedOnReviewQueue() {
+        dataStore.edit { it[HAS_ACTED_ON_REVIEW_KEY] = true }
+    }
+
     // ---- Wallet catalogue (accounts + categories) --------------------------------
 
     /**
@@ -148,5 +174,7 @@ class AppPreferences(
         val LAST_SCANNED_TIMESTAMP_KEY = longPreferencesKey("last_scanned_timestamp")
         val SCAN_ALL_TIME_KEY = booleanPreferencesKey("scan_all_time")
         val LAST_CATALOGUE_SYNC_KEY = longPreferencesKey("last_catalogue_sync_at")
+        val HAS_ACTED_ON_REVIEW_KEY = booleanPreferencesKey("has_acted_on_review_queue")
+        val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
     }
 }

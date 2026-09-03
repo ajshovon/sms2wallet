@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -19,11 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * Field chrome shared by every input in the app: a persistent label *above* the control, the
@@ -62,7 +60,6 @@ fun FieldScaffold(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
                 color = labelColor
             )
             if (isOptional) {
@@ -98,7 +95,7 @@ private fun SupportingLine(supportingText: String?, errorText: String?, enabled:
         if (message == null) return@Row
         if (errorText != null) {
             Icon(
-                imageVector = Icons.Filled.ErrorOutline,
+                imageVector = PhosphorIcons.ErrorOutline,
                 // The message beside it already states the problem; announcing the glyph too
                 // would just make a screen reader say it twice.
                 contentDescription = null,
@@ -203,7 +200,7 @@ fun FormErrorSummary(message: String, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.ErrorOutline,
+                imageVector = PhosphorIcons.ErrorOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(IconSize.md)

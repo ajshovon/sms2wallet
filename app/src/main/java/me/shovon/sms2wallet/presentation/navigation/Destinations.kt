@@ -1,15 +1,7 @@
 package me.shovon.sms2wallet.presentation.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Checklist
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /** All navigable routes in the app. */
 sealed class Sms2WalletDestination(val route: String) {
@@ -44,25 +36,25 @@ val bottomNavItems = listOf(
     BottomNavItem(
         destination = Sms2WalletDestination.Dashboard,
         label = "Dashboard",
-        selectedIcon = Icons.Filled.Home,
-        unselectedIcon = Icons.Outlined.Home
+        selectedIcon = PhosphorIcons.Home,
+        unselectedIcon = PhosphorIcons.Home
     ),
     BottomNavItem(
         destination = Sms2WalletDestination.ReviewQueue,
         label = "Review",
-        selectedIcon = Icons.Filled.Checklist,
-        unselectedIcon = Icons.Outlined.Checklist
+        selectedIcon = PhosphorIcons.Checklist,
+        unselectedIcon = PhosphorIcons.Checklist
     ),
     BottomNavItem(
         destination = Sms2WalletDestination.Settings,
         label = "Settings",
-        selectedIcon = Icons.Filled.Settings,
-        unselectedIcon = Icons.Outlined.Settings
+        selectedIcon = PhosphorIcons.Settings,
+        unselectedIcon = PhosphorIcons.Settings
     ),
     BottomNavItem(
         destination = Sms2WalletDestination.Activity,
         label = "Activity",
-        selectedIcon = Icons.Filled.History,
-        unselectedIcon = Icons.Outlined.History
+        selectedIcon = PhosphorIcons.History,
+        unselectedIcon = PhosphorIcons.History
     )
 )

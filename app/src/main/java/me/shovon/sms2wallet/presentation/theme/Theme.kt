@@ -9,7 +9,9 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 private val LightColors = lightColorScheme(
     primary = md_theme_light_primary,
@@ -66,20 +68,51 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
+ * True-black variant of [DarkColors].
+ *
+ * Only the backdrop tokens go to pure black; the container tokens stay slightly lifted. If every
+ * surface were also #000 the grouped rows, sheets and dialogs would all merge into one
+ * undifferentiated void, so the separation that a normal dark theme gets from luminance is
+ * preserved here by keeping surfaces marginally above the background and outlines visible.
+ */
+private val AmoledColors = DarkColors.copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceVariant = md_theme_amoled_surfaceVariant,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = md_theme_amoled_container,
+    surfaceContainer = md_theme_amoled_container,
+    surfaceContainerHigh = md_theme_amoled_containerHigh,
+    surfaceContainerHighest = md_theme_amoled_containerHigh,
+    // A hairline that is still visible against #000, since luminance can no longer do the work.
+    outlineVariant = md_theme_amoled_outlineVariant,
+)
+
+/**
  * App-wide Material 3 theme. Uses dynamic (Material You) colour on Android 12+ when
  * [useDynamicColor] is true, and the hand-picked [LightColors]/[DarkColors] fallback
  * everywhere else (including all API < 31 devices).
  */
 @Composable
 fun Sms2WalletTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     useDynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK, ThemeMode.AMOLED -> true
+    }
+    val amoled = themeMode == ThemeMode.AMOLED
     val dynamicColorAvailable = useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val context = LocalContext.current
 
     val colorScheme = when {
+        // AMOLED opts out of dynamic colour on purpose: Material You's dark scheme derives a
+        // tinted, non-black background from the wallpaper, which is precisely what this mode
+        // exists to avoid.
+        amoled -> AmoledColors
         dynamicColorAvailable && darkTheme -> dynamicDarkColorScheme(context)
         dynamicColorAvailable && !darkTheme -> dynamicLightColorScheme(context)
         darkTheme -> DarkColors
@@ -92,6 +125,7 @@ fun Sms2WalletTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = AppTypography,
+            shapes = AppShapes,
             content = content
         )
     }

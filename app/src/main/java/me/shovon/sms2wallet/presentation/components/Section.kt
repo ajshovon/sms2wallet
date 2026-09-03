@@ -13,8 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.theme.CornerRadius
 import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
@@ -44,7 +44,6 @@ fun SectionHeader(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (supportingText != null) {
@@ -127,7 +126,7 @@ fun GroupedRowDivider(modifier: Modifier = Modifier) {
  */
 @Composable
 fun groupedRowShape(index: Int, count: Int): androidx.compose.foundation.shape.CornerBasedShape {
-    val radius = GROUP_CORNER_RADIUS
+    val radius = CornerRadius.group
     val none = androidx.compose.foundation.shape.CornerSize(0.dp)
     val full = androidx.compose.foundation.shape.CornerSize(radius)
     return androidx.compose.foundation.shape.RoundedCornerShape(
@@ -137,9 +136,6 @@ fun groupedRowShape(index: Int, count: Int): androidx.compose.foundation.shape.C
         bottomEnd = if (index == count - 1) full else none
     )
 }
-
-/** Matches `MaterialTheme.shapes.large`, so grouped rows and [GroupedContainer] agree. */
-private val GROUP_CORNER_RADIUS = 16.dp
 
 /**
  * Background fill shared by [GroupedContainer] and individually-shaped grouped rows.

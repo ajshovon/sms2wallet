@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,11 +29,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.Spacing
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * Gates the app on the SMS permissions it cannot work without, and kicks off the initial inbox
@@ -84,22 +86,32 @@ fun SmsPermissionGate(
     val permanentlyDenied = hasAsked && activity != null &&
         SmsPermissions.REQUIRED.none { activity.shouldShowRequestPermissionRationale(it) }
 
+    // A Surface, not a bare Column: outside one, Material's LocalContentColor falls back to
+    // black, so any Text that does not name its own colour rendered black-on-black in dark mode.
+    // The Surface also paints the background explicitly instead of relying on the Activity's
+    // window background to happen to match the Compose theme.
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            .systemBarsPadding()
+            .padding(Spacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            imageVector = Icons.Filled.Sms,
+            imageVector = PhosphorIcons.Sms,
             contentDescription = null,
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier.size(IconSize.xl),
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
             text = "SMS2Wallet needs to read your SMS",
             style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
         Text(
@@ -136,6 +148,7 @@ fun SmsPermissionGate(
             Text("I've granted it - check again")
         }
     }
+}
 }
 
 private fun appSettingsIntent(packageName: String): Intent =

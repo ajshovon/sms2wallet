@@ -51,7 +51,9 @@ data class ReviewQueueUiState(
     val groups: List<ReviewQueueDayGroup> = emptyList(),
     val isMultiSelectMode: Boolean = false,
     val selectedIds: Set<String> = emptySet(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    /** True until the user has pushed or dismissed once; drives the one-time swipe hint. */
+    val showSwipeHint: Boolean = false
 ) {
     val isEmpty: Boolean get() = groups.isEmpty() && !isLoading
     val totalCount: Int get() = groups.sumOf { it.transactions.size }

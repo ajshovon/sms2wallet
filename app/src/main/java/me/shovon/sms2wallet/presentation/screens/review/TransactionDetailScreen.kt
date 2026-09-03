@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -26,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,6 +33,7 @@ import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * The final review step for one parsed transaction before it is queued for Wallet.
@@ -62,7 +59,7 @@ fun TransactionDetailScreen(
         title = "Review transaction",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(PhosphorIcons.ArrowBack, contentDescription = "Back")
             }
         },
         bottomBar = {
@@ -130,8 +127,7 @@ private fun ProvenanceHeader(state: TransactionDetailUiState) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = state.merchant.ifBlank { state.providerName ?: "Transaction" },
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold
+            style = MaterialTheme.typography.headlineSmall
         )
         state.sourceSummary?.let { summary ->
             Text(
@@ -188,7 +184,7 @@ private fun AttentionBanner(state: TransactionDetailUiState) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Icon(
-                imageVector = Icons.Filled.WarningAmber,
+                imageVector = PhosphorIcons.WarningAmber,
                 contentDescription = null,
                 tint = extended.onWarningContainer,
                 modifier = Modifier.size(IconSize.md)
@@ -197,7 +193,6 @@ private fun AttentionBanner(state: TransactionDetailUiState) {
                 Text(
                     text = if (state.isSuspectedDuplicate) "Possible duplicate" else "Needs verification",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
                     color = extended.onWarningContainer
                 )
                 Text(

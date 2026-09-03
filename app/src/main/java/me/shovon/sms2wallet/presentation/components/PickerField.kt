@@ -13,12 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * A single-select field that opens a full-width [SelectionSheet] instead of an anchored
@@ -164,7 +159,7 @@ fun PickerControl(
             modifier = Modifier.weight(1f)
         )
         Icon(
-            imageVector = Icons.Filled.KeyboardArrowDown,
+            imageVector = PhosphorIcons.KeyboardArrowDown,
             contentDescription = null,
             tint = if (enabled) {
                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -225,7 +220,6 @@ fun SelectionSheet(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.sm)
             )
 
@@ -240,14 +234,14 @@ fun SelectionSheet(
 
             when {
                 options.isEmpty() -> SheetMessage(
-                    icon = Icons.Filled.SearchOff,
+                    icon = PhosphorIcons.SearchOff,
                     title = "Nothing to choose from",
                     body = "Open Settings and tap Sync under \"Accounts and categories\" to pull " +
                         "these from Wallet."
                 )
 
                 results.isEmpty() -> SheetMessage(
-                    icon = Icons.Filled.SearchOff,
+                    icon = PhosphorIcons.SearchOff,
                     title = "No matches for \"${query.trim()}\"",
                     body = "Try a shorter or differently spelled search.",
                     actionLabel = "Clear search",
@@ -285,9 +279,14 @@ private fun SelectionRow(label: String, isSelected: Boolean, onClick: () -> Unit
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
             // Selection is carried by weight and a check mark, not by the container tint alone,
-            // so it survives both themes and colour-vision differences.
+            // so it survives both themes and colour-vision differences. titleMedium and bodyLarge
+            // are the same size, so only the weight changes and nothing reflows.
+            style = if (isSelected) {
+                MaterialTheme.typography.titleMedium
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (isSelected) {
                 MaterialTheme.colorScheme.onSecondaryContainer
@@ -298,7 +297,7 @@ private fun SelectionRow(label: String, isSelected: Boolean, onClick: () -> Unit
         )
         if (isSelected) {
             Icon(
-                imageVector = Icons.Filled.Check,
+                imageVector = PhosphorIcons.Check,
                 contentDescription = "Selected",
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(IconSize.md)
@@ -324,7 +323,7 @@ private fun SearchField(
         placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         leadingIcon = {
             Icon(
-                imageVector = Icons.Filled.Search,
+                imageVector = PhosphorIcons.Search,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(IconSize.lg)
@@ -334,7 +333,7 @@ private fun SearchField(
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
-                        imageVector = Icons.Filled.Close,
+                        imageVector = PhosphorIcons.Close,
                         contentDescription = "Clear search",
                         modifier = Modifier.size(IconSize.md)
                     )

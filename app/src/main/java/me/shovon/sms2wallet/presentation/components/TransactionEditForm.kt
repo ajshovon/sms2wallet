@@ -11,7 +11,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
@@ -53,7 +52,7 @@ fun TransactionEditForm(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             // The amount is the number the user is really checking, so it is set in a heavier,
             // larger style than the rest of the form.
-            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
+            textStyle = MaterialTheme.typography.headlineSmall
         )
 
         FieldScaffold(label = "Type") {

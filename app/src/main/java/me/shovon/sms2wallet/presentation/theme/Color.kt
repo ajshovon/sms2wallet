@@ -69,3 +69,11 @@ val expense_dark = Color(0xFFFFB4AB)
 val warning_dark = Color(0xFFFFC559)
 val warningContainer_dark = Color(0xFF553E00)
 val onWarningContainer_dark = Color(0xFFFFDEA6)
+
+// AMOLED: the backdrop is pure black, so these are the few tokens that must stay above it for
+// grouped rows, sheets and dividers to remain distinguishable.
+
+val md_theme_amoled_surfaceVariant = Color(0xFF1A1D1B)
+val md_theme_amoled_container = Color(0xFF101311)
+val md_theme_amoled_containerHigh = Color(0xFF1A1D1B)
+val md_theme_amoled_outlineVariant = Color(0xFF2E332F)

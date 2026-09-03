@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.presentation.model.ReviewQueueUiState
 import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
@@ -28,6 +29,7 @@ import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
 @HiltViewModel
 class ReviewQueueViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val settingsRepository: SettingsRepository,
     private val pushScheduler: PushScheduler,
 ) : ViewModel() {
 
@@ -36,7 +38,8 @@ class ReviewQueueViewModel @Inject constructor(
     val uiState: StateFlow<ReviewQueueUiState> = combine(
         transactionRepository.observeReviewQueue(),
         selection,
-    ) { transactions, selectionState ->
+        settingsRepository.hasActedOnReviewQueue,
+    ) { transactions, selectionState, hasActed ->
         val groups = transactions.toReviewQueueGroups()
         val visibleIds = transactions.mapTo(mutableSetOf()) { it.id.toString() }
         ReviewQueueUiState(
@@ -46,6 +49,7 @@ class ReviewQueueViewModel @Inject constructor(
             // screen) so the "N selected" count can never exceed what is actually on screen.
             selectedIds = selectionState.selectedIds intersect visibleIds,
             isLoading = false,
+            showSwipeHint = !hasActed,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -65,7 +69,10 @@ class ReviewQueueViewModel @Inject constructor(
         viewModelScope.launch {
             // Only schedule when the row actually moved: approveForSend refuses rows that have
             // already left the review states, and waking the worker for those is pointless.
-            if (transactionRepository.approveForSend(rowId)) pushScheduler.schedule()
+            if (transactionRepository.approveForSend(rowId)) {
+                settingsRepository.setHasActedOnReviewQueue()
+                pushScheduler.schedule()
+            }
         }
     }
 
@@ -76,7 +83,9 @@ class ReviewQueueViewModel @Inject constructor(
      */
     fun dismiss(id: String) {
         val rowId = id.toLongOrNull() ?: return
-        viewModelScope.launch { transactionRepository.dismiss(rowId) }
+        viewModelScope.launch {
+            if (transactionRepository.dismiss(rowId)) settingsRepository.setHasActedOnReviewQueue()
+        }
     }
 
     /**

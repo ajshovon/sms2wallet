@@ -9,6 +9,7 @@ import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
 import me.shovon.sms2wallet.data.local.entity.CategoryRuleEntity
 import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.prefs.SecureTokenStore
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * Thin wrapper over [AppPreferences], [SecureTokenStore], [AccountMappingDao] and
@@ -52,6 +53,16 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLastScannedTimestamp(timestamp: Long) = appPreferences.setLastScannedTimestamp(timestamp)
     suspend fun setScanAllTime(scanAllTime: Boolean) = appPreferences.setScanAllTime(scanAllTime)
+
+    // ---- Appearance -----------------------------------------------------------
+
+    val themeMode: Flow<ThemeMode> = appPreferences.themeMode
+    suspend fun setThemeMode(mode: ThemeMode) = appPreferences.setThemeMode(mode)
+
+    // ---- First-run coaching ---------------------------------------------------
+
+    val hasActedOnReviewQueue: Flow<Boolean> = appPreferences.hasActedOnReviewQueue
+    suspend fun setHasActedOnReviewQueue() = appPreferences.setHasActedOnReviewQueue()
 
     // ---- Wallet catalogue -----------------------------------------------------
 

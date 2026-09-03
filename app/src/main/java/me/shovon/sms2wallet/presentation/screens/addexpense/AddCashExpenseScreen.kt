@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -23,6 +21,7 @@ import me.shovon.sms2wallet.presentation.components.FormErrorSummary
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.components.TransactionEditForm
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * Manual "cash expense" entry sheet, opened from the Dashboard FAB - for spending that never
@@ -40,7 +39,7 @@ fun AddCashExpenseScreen(
         title = "Add cash expense",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                Icon(PhosphorIcons.Close, contentDescription = "Cancel")
             }
         },
         actions = {

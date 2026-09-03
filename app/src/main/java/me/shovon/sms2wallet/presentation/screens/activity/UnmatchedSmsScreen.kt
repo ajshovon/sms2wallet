@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +21,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
 import me.shovon.sms2wallet.presentation.components.EmptyState
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
@@ -35,6 +31,8 @@ import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.UnmatchedSmsScreenUiState
 import me.shovon.sms2wallet.presentation.model.UnmatchedSmsUiState
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * "Unmatched SMS" sub-screen, reached from Activity: raw SMS messages no parser could match, so
@@ -46,7 +44,7 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
         title = "Unmatched SMS",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(PhosphorIcons.ArrowBack, contentDescription = "Back")
             }
         }
     ) { padding ->
@@ -67,7 +65,7 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
 
         if (state.items.isEmpty()) {
             EmptyState(
-                icon = Icons.Filled.MarkEmailRead,
+                icon = PhosphorIcons.MarkEmailRead,
                 title = "Nothing unmatched",
                 description = "Every relevant SMS has been recognised by a parser. If you expect a transaction to show up, check that its provider is enabled in Settings.",
                 modifier = Modifier
@@ -111,8 +109,7 @@ private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
             ) {
                 Text(
                     text = item.sender,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
@@ -134,7 +131,7 @@ private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
 @Preview(name = "Unmatched SMS - Light", showBackground = true)
 @Composable
 private fun UnmatchedSmsLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         UnmatchedSmsContent(state = SampleData.unmatchedSms, onBack = {})
     }
 }
@@ -142,7 +139,7 @@ private fun UnmatchedSmsLightPreview() {
 @Preview(name = "Unmatched SMS - Dark", showBackground = true)
 @Composable
 private fun UnmatchedSmsDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         UnmatchedSmsContent(state = SampleData.unmatchedSms, onBack = {})
     }
 }
@@ -150,7 +147,7 @@ private fun UnmatchedSmsDarkPreview() {
 @Preview(name = "Unmatched SMS - Empty", showBackground = true)
 @Composable
 private fun UnmatchedSmsEmptyPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         UnmatchedSmsContent(state = SampleData.emptyUnmatchedSms, onBack = {})
     }
 }

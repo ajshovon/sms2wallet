@@ -1,5 +1,7 @@
 package me.shovon.sms2wallet.presentation.screens.settings
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,32 +13,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import me.shovon.sms2wallet.presentation.theme.IconSize
-import me.shovon.sms2wallet.presentation.theme.Spacing
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.components.AppTextField
 import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
@@ -47,7 +43,12 @@ import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
 import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MotionDuration
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.StandardEasing
 
 /**
  * Settings tab: wallet connection, per-provider parser toggles, account mapping, reminders.
@@ -63,6 +64,7 @@ fun SettingsContent(
     onToggleTokenVisibility: () -> Unit,
     onTestConnection: () -> Unit,
     onSyncWalletData: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
     onAccountMappingChange: (String, String) -> Unit,
@@ -82,6 +84,17 @@ fun SettingsContent(
                 bottom = Spacing.xxl
             )
         ) {
+            item(key = "appearance-header") {
+                SectionHeader(title = "Appearance")
+            }
+            item(key = "appearance-body") {
+                ThemeModeSelector(
+                    selected = state.themeMode,
+                    onSelect = onThemeModeChange,
+                    modifier = Modifier.padding(bottom = Spacing.xl)
+                )
+            }
+
             item(key = "wallet-header") {
                 SectionHeader(
                     title = "Wallet connection",
@@ -114,7 +127,7 @@ fun SettingsContent(
                     trailing = {
                         TextButton(onClick = onOpenParserPlayground) {
                             Icon(
-                                imageVector = Icons.Filled.Science,
+                                imageVector = PhosphorIcons.Science,
                                 contentDescription = null,
                                 modifier = Modifier.size(IconSize.md)
                             )
@@ -182,6 +195,48 @@ fun SettingsContent(
 }
 
 /**
+ * Theme picker.
+ *
+ * A single-choice segmented row rather than a dialog or a list of radio rows: there are only four
+ * options, the labels are short, and - unusually for a setting - the result is visible instantly on
+ * the screen you are already looking at. Hiding that behind a dialog would put a scrim over the
+ * very thing the user is trying to judge.
+ */
+@Composable
+private fun ThemeModeSelector(
+    selected: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val options = ThemeMode.entries
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, mode ->
+            SegmentedButton(
+                selected = mode == selected,
+                onClick = { onSelect(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                label = {
+                    Text(
+                        text = mode.label(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            )
+        }
+    }
+}
+
+/** Short, user-facing name for each mode. "AMOLED" is kept as-is: it is what users search for. */
+private fun ThemeMode.label(): String = when (this) {
+    ThemeMode.SYSTEM -> "System"
+    ThemeMode.LIGHT -> "Light"
+    ThemeMode.DARK -> "Dark"
+    ThemeMode.AMOLED -> "AMOLED"
+}
+
+/**
  * What the app currently knows about your Wallet, and how to bring it up to date.
  *
  * Accounts and categories are cached locally, so anything created in Wallet after the last sync
@@ -206,8 +261,7 @@ private fun WalletCatalogueRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Accounts and categories",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     text = when {
@@ -229,7 +283,12 @@ private fun WalletCatalogueRow(
                 }
             }
 
-            if (state.isSyncing) {
+            Crossfade(
+                targetState = state.isSyncing,
+                animationSpec = tween(MotionDuration.QUICK_MILLIS, easing = StandardEasing),
+                label = "sync-state"
+            ) { syncing ->
+            if (syncing) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(IconSize.lg),
                     strokeWidth = 2.dp
@@ -237,13 +296,14 @@ private fun WalletCatalogueRow(
             } else {
                 TextButton(onClick = onSync, enabled = enabled) {
                     Icon(
-                        imageVector = Icons.Filled.Refresh,
+                        imageVector = PhosphorIcons.Refresh,
                         contentDescription = null,
                         modifier = Modifier.size(IconSize.md)
                     )
                     Spacer(Modifier.size(Spacing.xs))
                     Text("Sync")
                 }
+            }
             }
         }
     }
@@ -294,9 +354,9 @@ private fun WalletConnectionSection(
                     IconButton(onClick = onToggleVisibility) {
                         Icon(
                             imageVector = if (state.isTokenVisible) {
-                                Icons.Filled.VisibilityOff
+                                PhosphorIcons.VisibilityOff
                             } else {
-                                Icons.Filled.Visibility
+                                PhosphorIcons.Visibility
                             },
                             contentDescription = if (state.isTokenVisible) "Hide token" else "Show token"
                         )
@@ -331,14 +391,14 @@ private fun WalletConnectionSection(
 private fun ConnectionStatusRow(status: ConnectionStatus) {
     val extended = Sms2WalletTheme.extendedColors
     val (icon, label, color) = when (status) {
-        is ConnectionStatus.NotTested -> Triple(Icons.Filled.Error, "Not tested yet", MaterialTheme.colorScheme.onSurfaceVariant)
-        is ConnectionStatus.Success -> Triple(Icons.Filled.CheckCircle, "Connected", extended.income)
+        is ConnectionStatus.NotTested -> Triple(PhosphorIcons.Error, "Not tested yet", MaterialTheme.colorScheme.onSurfaceVariant)
+        is ConnectionStatus.Success -> Triple(PhosphorIcons.CheckCircle, "Connected", extended.income)
         is ConnectionStatus.Syncing -> Triple(
-            Icons.Filled.Sync,
+            PhosphorIcons.Sync,
             "Wallet is still syncing - retry in ${status.retryInMinutes} minute${if (status.retryInMinutes == 1) "" else "s"}",
             MaterialTheme.colorScheme.tertiary
         )
-        is ConnectionStatus.Failed -> Triple(Icons.Filled.Error, status.message, MaterialTheme.colorScheme.error)
+        is ConnectionStatus.Failed -> Triple(PhosphorIcons.Error, status.message, MaterialTheme.colorScheme.error)
     }
     Row(
         modifier = Modifier.padding(top = Spacing.md),
@@ -353,7 +413,7 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
 @Preview(name = "Settings - Light", showBackground = true)
 @Composable
 private fun SettingsScreenLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         SettingsContent(
             state = SampleData.settings,
             onOpenParserPlayground = {},
@@ -361,6 +421,7 @@ private fun SettingsScreenLightPreview() {
             onToggleTokenVisibility = {},
             onTestConnection = {},
             onSyncWalletData = {},
+            onThemeModeChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },
@@ -374,7 +435,7 @@ private fun SettingsScreenLightPreview() {
 @Preview(name = "Settings - Dark", showBackground = true)
 @Composable
 private fun SettingsScreenDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         SettingsContent(
             state = SampleData.settings.copy(walletConnection = SampleData.walletConnectionSyncing),
             onOpenParserPlayground = {},
@@ -382,6 +443,7 @@ private fun SettingsScreenDarkPreview() {
             onToggleTokenVisibility = {},
             onTestConnection = {},
             onSyncWalletData = {},
+            onThemeModeChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },

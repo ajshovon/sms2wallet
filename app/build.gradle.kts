@@ -42,8 +42,8 @@ android {
         // Bump on every release: Android compares versionCode, not versionName, so shipping a
         // new APK on the old code makes it the "same version" and it will not install as an
         // upgrade over an existing install.
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -108,7 +108,6 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
-    implementation(libs.compose.material.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.androidx.navigation.compose)

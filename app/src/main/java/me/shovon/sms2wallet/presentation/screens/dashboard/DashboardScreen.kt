@@ -11,13 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -31,7 +24,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.components.SectionDivider
@@ -46,6 +38,8 @@ import me.shovon.sms2wallet.presentation.model.RateLimitUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.TokenHealth
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * Home tab: today/this-week push counters, pending review count, last sync time, token
@@ -62,7 +56,7 @@ fun DashboardScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddCashExpense,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(PhosphorIcons.Add, contentDescription = null) },
                 text = { Text("Add cash expense") }
             )
         }
@@ -116,7 +110,7 @@ fun DashboardScreen(
             item(key = "status-body") {
                 GroupedContainer {
                     InfoRow(
-                        icon = Icons.Filled.Sync,
+                        icon = PhosphorIcons.Sync,
                         title = "Last sync",
                         value = state.lastSyncLabel ?: "Never synced yet"
                     )
@@ -144,8 +138,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
         Column(modifier = Modifier.padding(Spacing.lg)) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.headlineMedium
             )
             Text(
                 text = label,
@@ -182,7 +175,6 @@ private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit, modifier: 
                 Text(
                     text = "Pending review",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
@@ -199,7 +191,6 @@ private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit, modifier: 
             Text(
                 text = pendingCount.toString(),
                 style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
@@ -209,11 +200,11 @@ private fun PendingReviewCard(pendingCount: Int, onClick: () -> Unit, modifier: 
 @Composable
 private fun TokenHealthRow(tokenHealth: TokenHealth) {
     val (icon: ImageVector, label: String) = when (tokenHealth) {
-        TokenHealth.VALID -> Icons.Filled.CheckCircle to "Wallet token is valid"
-        TokenHealth.EXPIRING_SOON -> Icons.Filled.HourglassTop to "Wallet token expires soon"
-        TokenHealth.SYNCING -> Icons.Filled.Sync to "Wallet is still syncing"
-        TokenHealth.INVALID -> Icons.Filled.Error to "Wallet token is invalid"
-        TokenHealth.UNKNOWN -> Icons.Filled.Error to "Token status unknown"
+        TokenHealth.VALID -> PhosphorIcons.CheckCircle to "Wallet token is valid"
+        TokenHealth.EXPIRING_SOON -> PhosphorIcons.HourglassTop to "Wallet token expires soon"
+        TokenHealth.SYNCING -> PhosphorIcons.Sync to "Wallet is still syncing"
+        TokenHealth.INVALID -> PhosphorIcons.Error to "Wallet token is invalid"
+        TokenHealth.UNKNOWN -> PhosphorIcons.Error to "Token status unknown"
     }
     InfoRow(icon = icon, title = "Token health", value = label)
 }
@@ -264,7 +255,7 @@ private fun RateLimitRow(rateLimit: RateLimitUiState) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         Icon(
-            imageVector = Icons.Filled.Speed,
+            imageVector = PhosphorIcons.Speed,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(IconSize.lg)
@@ -302,7 +293,7 @@ private val PROGRESS_HEIGHT = 8.dp
 @Preview(name = "Dashboard - Light", showBackground = true)
 @Composable
 private fun DashboardScreenLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         DashboardScreen(state = SampleData.dashboard, onAddCashExpense = {}, onViewReviewQueue = {})
     }
 }
@@ -310,7 +301,7 @@ private fun DashboardScreenLightPreview() {
 @Preview(name = "Dashboard - Dark", showBackground = true)
 @Composable
 private fun DashboardScreenDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         DashboardScreen(state = SampleData.dashboard, onAddCashExpense = {}, onViewReviewQueue = {})
     }
 }

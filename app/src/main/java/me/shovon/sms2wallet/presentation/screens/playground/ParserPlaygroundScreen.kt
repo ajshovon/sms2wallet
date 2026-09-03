@@ -8,10 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
@@ -36,6 +32,8 @@ import me.shovon.sms2wallet.presentation.model.ParserMatchResultUiState
 import me.shovon.sms2wallet.presentation.model.ParserPlaygroundUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * Parser playground, reached from Settings: paste an SMS sender + body and see which registered
@@ -68,7 +66,7 @@ fun ParserPlaygroundContent(
         title = "Parser playground",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(PhosphorIcons.ArrowBack, contentDescription = "Back")
             }
         }
     ) { padding ->
@@ -171,7 +169,7 @@ private fun ParserResultHeader(result: ParserMatchResultUiState) {
     ) {
         Text(text = result.providerName, style = MaterialTheme.typography.titleMedium)
         Icon(
-            imageVector = if (result.matched) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
+            imageVector = if (result.matched) PhosphorIcons.CheckCircle else PhosphorIcons.Cancel,
             contentDescription = if (result.matched) "Matched" else "No match",
             tint = if (result.matched) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -181,7 +179,7 @@ private fun ParserResultHeader(result: ParserMatchResultUiState) {
 @Preview(name = "Parser playground - Light", showBackground = true)
 @Composable
 private fun ParserPlaygroundLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         ParserPlaygroundContent(
             state = SampleData.parserPlayground,
             onBack = {},
@@ -195,7 +193,7 @@ private fun ParserPlaygroundLightPreview() {
 @Preview(name = "Parser playground - Dark", showBackground = true)
 @Composable
 private fun ParserPlaygroundDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         ParserPlaygroundContent(
             state = SampleData.parserPlayground,
             onBack = {},

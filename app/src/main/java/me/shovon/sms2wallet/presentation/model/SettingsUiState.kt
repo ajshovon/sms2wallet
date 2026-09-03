@@ -1,5 +1,7 @@
 package me.shovon.sms2wallet.presentation.model
 
+import me.shovon.sms2wallet.domain.model.ThemeMode
+
 /** UI state for the "Wallet connection" section of Settings. */
 data class WalletConnectionUiState(
     /** What the user is currently typing. Empty means "keep whatever is already stored". */
@@ -73,6 +75,7 @@ data class WalletCatalogueUiState(
 data class SettingsUiState(
     val walletConnection: WalletConnectionUiState = WalletConnectionUiState(),
     val catalogue: WalletCatalogueUiState = WalletCatalogueUiState(),
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val parserSettings: List<ParserSettingUiState> = emptyList(),
     val accountMappings: List<AccountMappingRowUiState> = emptyList(),
     val reminders: ReminderSettingsUiState = ReminderSettingsUiState()

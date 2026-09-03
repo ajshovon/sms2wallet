@@ -1,5 +1,11 @@
 package me.shovon.sms2wallet.presentation.screens.review
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,14 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PublishedWithChanges
-import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,7 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import me.shovon.sms2wallet.presentation.components.EmptyState
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
@@ -46,8 +45,12 @@ import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.model.ReviewQueueUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MotionDuration
+import me.shovon.sms2wallet.presentation.theme.StandardEasing
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * Review queue tab: parsed-but-unpushed transactions grouped by day. Swipe right to push,
@@ -78,21 +81,21 @@ fun ReviewQueueContent(
         navigationIcon = {
             if (state.isMultiSelectMode) {
                 IconButton(onClick = onToggleMultiSelect) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit selection")
+                    Icon(PhosphorIcons.ArrowBack, contentDescription = "Exit selection")
                 }
             }
         },
         actions = {
             if (state.isMultiSelectMode) {
                 IconButton(onClick = onBulkDismiss, enabled = state.selectedIds.isNotEmpty()) {
-                    Icon(Icons.Filled.DeleteSweep, contentDescription = "Dismiss selected")
+                    Icon(PhosphorIcons.DeleteSweep, contentDescription = "Dismiss selected")
                 }
                 IconButton(onClick = onBulkPush, enabled = state.selectedIds.isNotEmpty()) {
-                    Icon(Icons.Filled.PublishedWithChanges, contentDescription = "Push selected")
+                    Icon(PhosphorIcons.PublishedWithChanges, contentDescription = "Push selected")
                 }
             } else if (!state.isEmpty) {
                 IconButton(onClick = onToggleMultiSelect) {
-                    Icon(Icons.Filled.Checklist, contentDescription = "Select multiple")
+                    Icon(PhosphorIcons.Checklist, contentDescription = "Select multiple")
                 }
                 QueueOverflowMenu(onDismissAllClick = { confirmDismissAll = true })
             }
@@ -115,7 +118,7 @@ fun ReviewQueueContent(
 
         if (state.isEmpty) {
             EmptyState(
-                icon = Icons.Filled.Inbox,
+                icon = PhosphorIcons.Inbox,
                 title = "Nothing to review",
                 description = "New transactions parsed from your SMS show up here so you can check them before they reach Wallet.",
                 modifier = Modifier
@@ -142,6 +145,7 @@ fun ReviewQueueContent(
                 QueueSummary(
                     total = state.totalCount,
                     attentionCount = state.attentionCount,
+                    showSwipeHint = state.showSwipeHint,
                     modifier = Modifier.padding(bottom = Spacing.sm)
                 )
             }
@@ -160,6 +164,14 @@ fun ReviewQueueContent(
                     if (index > 0) GroupedRowDivider()
                     TransactionCard(
                         transaction = transaction,
+                        // Neighbours close the gap instead of snapping, which is what makes a
+                        // push or dismiss read as an outcome rather than a glitch.
+                        modifier = Modifier.animateItem(
+                            placementSpec = tween(
+                                durationMillis = MotionDuration.EMPHASISED_MILLIS,
+                                easing = StandardEasing
+                            )
+                        ),
                         index = index,
                         count = group.transactions.size,
                         onClick = {
@@ -181,10 +193,12 @@ fun ReviewQueueContent(
     }
 
     if (confirmDismissAll) {
+        val haptics = LocalHapticFeedback.current
         DismissAllDialog(
             count = state.totalCount,
             onConfirm = {
                 confirmDismissAll = false
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 onDismissAll()
             },
             onCancel = { confirmDismissAll = false }
@@ -204,14 +218,14 @@ private fun QueueOverflowMenu(onDismissAllClick: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
 
     IconButton(onClick = { menuOpen = true }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = "More actions")
+        Icon(PhosphorIcons.MoreVert, contentDescription = "More actions")
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
         DropdownMenuItem(
             text = { Text("Dismiss all", color = MaterialTheme.colorScheme.error) },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Filled.DeleteSweep,
+                    imageVector = PhosphorIcons.DeleteSweep,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(IconSize.lg)
@@ -233,7 +247,7 @@ private fun DismissAllDialog(count: Int, onConfirm: () -> Unit, onCancel: () -> 
         onDismissRequest = onCancel,
         icon = {
             Icon(
-                imageVector = Icons.Filled.WarningAmber,
+                imageVector = PhosphorIcons.WarningAmber,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error
             )
@@ -266,21 +280,40 @@ private fun DismissAllDialog(count: Int, onConfirm: () -> Unit, onCancel: () -> 
  * attention" row would be noise on the common, healthy case.
  */
 @Composable
-private fun QueueSummary(total: Int, attentionCount: Int, modifier: Modifier = Modifier) {
+private fun QueueSummary(
+    total: Int,
+    attentionCount: Int,
+    showSwipeHint: Boolean,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = if (total == 1) "1 transaction to review" else "$total transactions to review",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold
+            style = MaterialTheme.typography.headlineSmall
         )
-        Text(
-            text = "Swipe right to push, left to dismiss, or tap to edit first.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.xs)
-        )
+        // Retired for good once the gesture has been used: an instruction that never leaves is
+        // furniture, not help. It fades rather than vanishing so the list does not jump.
+        AnimatedVisibility(
+            visible = showSwipeHint,
+            enter = fadeIn(tween(MotionDuration.STANDARD_MILLIS, easing = StandardEasing)),
+            exit = fadeOut(tween(MotionDuration.QUICK_MILLIS)) +
+                shrinkVertically(tween(MotionDuration.STANDARD_MILLIS, easing = StandardEasing))
+        ) {
+            Text(
+                text = "Swipe right to push, left to dismiss, or tap to edit first.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs)
+            )
+        }
 
-        if (attentionCount > 0) {
+        AnimatedVisibility(
+            visible = attentionCount > 0,
+            enter = fadeIn(tween(MotionDuration.STANDARD_MILLIS, easing = StandardEasing)) +
+                expandVertically(tween(MotionDuration.STANDARD_MILLIS, easing = StandardEasing)),
+            exit = fadeOut(tween(MotionDuration.QUICK_MILLIS)) +
+                shrinkVertically(tween(MotionDuration.QUICK_MILLIS))
+        ) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,7 +327,7 @@ private fun QueueSummary(total: Int, attentionCount: Int, modifier: Modifier = M
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.WarningAmber,
+                        imageVector = PhosphorIcons.WarningAmber,
                         contentDescription = null,
                         tint = Sms2WalletTheme.extendedColors.onWarningContainer,
                         modifier = Modifier.size(IconSize.md)
@@ -317,7 +350,7 @@ private fun QueueSummary(total: Int, attentionCount: Int, modifier: Modifier = M
 @Preview(name = "Review queue - Light", showBackground = true)
 @Composable
 private fun ReviewQueueLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         ReviewQueueContent(
             state = SampleData.reviewQueue,
             onOpenTransaction = {},
@@ -335,7 +368,7 @@ private fun ReviewQueueLightPreview() {
 @Preview(name = "Review queue - Dark", showBackground = true)
 @Composable
 private fun ReviewQueueDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         ReviewQueueContent(
             state = SampleData.reviewQueue,
             onOpenTransaction = {},
@@ -353,7 +386,7 @@ private fun ReviewQueueDarkPreview() {
 @Preview(name = "Review queue - Empty", showBackground = true)
 @Composable
 private fun ReviewQueueEmptyPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         ReviewQueueContent(
             state = SampleData.emptyReviewQueue,
             onOpenTransaction = {},

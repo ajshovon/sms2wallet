@@ -10,14 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.MarkEmailUnread
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import me.shovon.sms2wallet.presentation.components.EmptyState
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
@@ -47,6 +38,8 @@ import me.shovon.sms2wallet.presentation.model.PushLogEntryUiState
 import me.shovon.sms2wallet.presentation.model.PushLogStatus
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
  * Activity tab: the push log (what was sent to Wallet, when, and whether it succeeded), with a
@@ -66,7 +59,7 @@ fun ActivityContent(
         actions = {
             TextButton(onClick = onOpenUnmatchedSms) {
                 Icon(
-                    imageVector = Icons.Filled.MarkEmailUnread,
+                    imageVector = PhosphorIcons.MarkEmailUnread,
                     contentDescription = null,
                     modifier = Modifier.size(IconSize.md)
                 )
@@ -92,7 +85,7 @@ fun ActivityContent(
 
         if (state.logs.isEmpty()) {
             EmptyState(
-                icon = Icons.Filled.History,
+                icon = PhosphorIcons.History,
                 title = "No push history yet",
                 description = "Once transactions are pushed to Wallet, you'll see a log of every attempt here.",
                 modifier = Modifier
@@ -135,10 +128,10 @@ private fun PushLogRow(
 ) {
     val extended = Sms2WalletTheme.extendedColors
     val (icon, statusColor, statusLabel) = when (entry.status) {
-        PushLogStatus.SUCCESS -> Triple(Icons.Filled.CheckCircle, extended.income, "Pushed")
-        PushLogStatus.FAILED -> Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, "Failed")
-        PushLogStatus.PENDING -> Triple(Icons.Filled.HourglassTop, MaterialTheme.colorScheme.onSurfaceVariant, "Pending")
-        PushLogStatus.RETRYING -> Triple(Icons.Filled.Sync, MaterialTheme.colorScheme.tertiary, "Retrying")
+        PushLogStatus.SUCCESS -> Triple(PhosphorIcons.CheckCircle, extended.income, "Pushed")
+        PushLogStatus.FAILED -> Triple(PhosphorIcons.Error, MaterialTheme.colorScheme.error, "Failed")
+        PushLogStatus.PENDING -> Triple(PhosphorIcons.HourglassTop, MaterialTheme.colorScheme.onSurfaceVariant, "Pending")
+        PushLogStatus.RETRYING -> Triple(PhosphorIcons.Sync, MaterialTheme.colorScheme.tertiary, "Retrying")
     }
 
     Surface(
@@ -155,8 +148,7 @@ private fun PushLogRow(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = entry.merchant,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -201,7 +193,7 @@ private fun PushLogRow(
                 ) {
                     TextButton(onClick = onRetry) {
                         Icon(
-                            imageVector = Icons.Filled.Refresh,
+                            imageVector = PhosphorIcons.Refresh,
                             contentDescription = null,
                             modifier = Modifier.size(IconSize.md)
                         )
@@ -217,7 +209,7 @@ private fun PushLogRow(
 @Preview(name = "Activity - Light", showBackground = true)
 @Composable
 private fun ActivityScreenLightPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         ActivityContent(state = SampleData.activity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }
@@ -225,7 +217,7 @@ private fun ActivityScreenLightPreview() {
 @Preview(name = "Activity - Dark", showBackground = true)
 @Composable
 private fun ActivityScreenDarkPreview() {
-    Sms2WalletTheme(darkTheme = true, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
         ActivityContent(state = SampleData.activity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }
@@ -233,7 +225,7 @@ private fun ActivityScreenDarkPreview() {
 @Preview(name = "Activity - Empty", showBackground = true)
 @Composable
 private fun ActivityScreenEmptyPreview() {
-    Sms2WalletTheme(darkTheme = false, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
         ActivityContent(state = SampleData.emptyActivity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }

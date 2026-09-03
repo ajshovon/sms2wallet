@@ -11,9 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,9 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.MoneyText
@@ -45,6 +43,7 @@ import me.shovon.sms2wallet.presentation.model.ReviewTransactionUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 
 /**
  * One Review-queue row, rendered as part of a grouped day list rather than as its own card.
@@ -105,10 +104,20 @@ fun TransactionCard(
         }
     )
 
+    val haptics = LocalHapticFeedback.current
+
     LaunchedEffect(pendingAction) {
         when (pendingAction) {
-            SwipeToDismissBoxValue.StartToEnd -> onPush()
-            SwipeToDismissBoxValue.EndToStart -> onDismiss()
+            // The row does not leave until the database confirms it, so without this the gesture
+            // has no immediate feedback at all and reads as "nothing happened".
+            SwipeToDismissBoxValue.StartToEnd -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onPush()
+            }
+            SwipeToDismissBoxValue.EndToStart -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onDismiss()
+            }
             else -> Unit
         }
         if (pendingAction != null) {
@@ -141,14 +150,14 @@ private fun SwipeBackground(
         SwipeToDismissBoxValue.StartToEnd -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            icon = Icons.Filled.CheckCircle,
+            icon = PhosphorIcons.CheckCircle,
             alignment = Alignment.CenterStart,
             label = "Push"
         )
         SwipeToDismissBoxValue.EndToStart -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            icon = Icons.Filled.Cancel,
+            icon = PhosphorIcons.Cancel,
             alignment = Alignment.CenterEnd,
             label = "Dismiss"
         )
@@ -183,7 +192,6 @@ private fun SwipeBackground(
                 Text(
                     text = spec.label,
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
                     color = spec.contentColor
                 )
             }
@@ -227,8 +235,7 @@ private fun TransactionRowContent(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = transaction.merchant,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
