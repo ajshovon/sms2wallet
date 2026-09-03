@@ -3,6 +3,7 @@ package me.shovon.sms2wallet.presentation.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -11,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.materialkolor.rememberDynamicColorScheme
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
 private val LightColors = lightColorScheme(
@@ -68,14 +71,17 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * True-black variant of [DarkColors].
+ * Re-grounds any dark [ColorScheme] on true black.
  *
- * Only the backdrop tokens go to pure black; the container tokens stay slightly lifted. If every
- * surface were also #000 the grouped rows, sheets and dialogs would all merge into one
- * undifferentiated void, so the separation that a normal dark theme gets from luminance is
- * preserved here by keeping surfaces marginally above the background and outlines visible.
+ * Written as a transform rather than a fixed scheme so AMOLED composes with whatever palette is
+ * active - dynamic colour or any accent - instead of being one hardcoded variant of the brand
+ * dark theme, which is what it used to be.
+ *
+ * Only the backdrop tokens go to #000. Containers stay slightly lifted and `outlineVariant` is
+ * raised, because once the background is pure black a surface can no longer be distinguished by
+ * being marginally lighter; the separation has to come from outlines instead.
  */
-private val AmoledColors = DarkColors.copy(
+private fun ColorScheme.asAmoled(): ColorScheme = copy(
     background = Color.Black,
     surface = Color.Black,
     surfaceVariant = md_theme_amoled_surfaceVariant,
@@ -84,9 +90,21 @@ private val AmoledColors = DarkColors.copy(
     surfaceContainer = md_theme_amoled_container,
     surfaceContainerHigh = md_theme_amoled_containerHigh,
     surfaceContainerHighest = md_theme_amoled_containerHigh,
-    // A hairline that is still visible against #000, since luminance can no longer do the work.
     outlineVariant = md_theme_amoled_outlineVariant,
 )
+
+/** Seed colours the palette is generated from, one per [AccentColor]. */
+private fun AccentColor.seed(): Color = when (this) {
+    AccentColor.DYNAMIC, AccentColor.BRAND -> md_theme_light_primary
+    AccentColor.BLUE -> Color(0xFF2E5AAC)
+    AccentColor.VIOLET -> Color(0xFF6A4FA3)
+    AccentColor.ROSE -> Color(0xFFB03A5B)
+    AccentColor.AMBER -> Color(0xFF9A6300)
+    AccentColor.FOREST -> Color(0xFF2E6B34)
+}
+
+/** The swatch shown in the picker: the seed itself, which is what the palette is built from. */
+fun AccentColor.swatch(): Color = seed()
 
 /**
  * App-wide Material 3 theme. Uses dynamic (Material You) colour on Android 12+ when
@@ -96,7 +114,7 @@ private val AmoledColors = DarkColors.copy(
 @Composable
 fun Sms2WalletTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    useDynamicColor: Boolean = true,
+    accentColor: AccentColor = AccentColor.DYNAMIC,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -105,19 +123,25 @@ fun Sms2WalletTheme(
         ThemeMode.DARK, ThemeMode.AMOLED -> true
     }
     val amoled = themeMode == ThemeMode.AMOLED
-    val dynamicColorAvailable = useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val context = LocalContext.current
+    val wallpaperColour = accentColor == AccentColor.DYNAMIC &&
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    val colorScheme = when {
-        // AMOLED opts out of dynamic colour on purpose: Material You's dark scheme derives a
-        // tinted, non-black background from the wallpaper, which is precisely what this mode
-        // exists to avoid.
-        amoled -> AmoledColors
-        dynamicColorAvailable && darkTheme -> dynamicDarkColorScheme(context)
-        dynamicColorAvailable && !darkTheme -> dynamicLightColorScheme(context)
-        darkTheme -> DarkColors
-        else -> LightColors
+    val basePalette = when {
+        wallpaperColour && darkTheme -> dynamicDarkColorScheme(context)
+        wallpaperColour && !darkTheme -> dynamicLightColorScheme(context)
+        // Every named accent goes through the same seed-to-tonal-palette generation, so the
+        // brand colour is not a special case with hand-written tokens while the others are
+        // derived - they all get the same contrast guarantees.
+        else -> rememberDynamicColorScheme(
+            seedColor = accentColor.seed(),
+            isDark = darkTheme,
+            isAmoled = false,
+        )
     }
+
+    // Applied last, so true black wins over whatever palette produced the surfaces.
+    val colorScheme = if (amoled) basePalette.asAmoled() else basePalette
 
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
 

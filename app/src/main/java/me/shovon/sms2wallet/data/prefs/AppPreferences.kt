@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import me.shovon.bdparser.bank.BankParser
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.bdparser.bank.BankParserRegistry
@@ -127,6 +128,13 @@ class AppPreferences(
         dataStore.edit { it[THEME_MODE_KEY] = mode.name }
     }
 
+    /** The seed colour the palette is generated from. */
+    val accentColor: Flow<AccentColor> = safeData.map { AccentColor.fromName(it[ACCENT_COLOR_KEY]) }
+
+    suspend fun setAccentColor(accent: AccentColor) {
+        dataStore.edit { it[ACCENT_COLOR_KEY] = accent.name }
+    }
+
     // ---- First-run coaching -------------------------------------------------------
 
     /**
@@ -176,5 +184,6 @@ class AppPreferences(
         val LAST_CATALOGUE_SYNC_KEY = longPreferencesKey("last_catalogue_sync_at")
         val HAS_ACTED_ON_REVIEW_KEY = booleanPreferencesKey("has_acted_on_review_queue")
         val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
+        val ACCENT_COLOR_KEY = stringPreferencesKey("accent_color")
     }
 }

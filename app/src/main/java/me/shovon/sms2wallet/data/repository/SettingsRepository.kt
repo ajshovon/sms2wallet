@@ -9,6 +9,7 @@ import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
 import me.shovon.sms2wallet.data.local.entity.CategoryRuleEntity
 import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.prefs.SecureTokenStore
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
@@ -58,6 +59,9 @@ class SettingsRepository @Inject constructor(
 
     val themeMode: Flow<ThemeMode> = appPreferences.themeMode
     suspend fun setThemeMode(mode: ThemeMode) = appPreferences.setThemeMode(mode)
+
+    val accentColor: Flow<AccentColor> = appPreferences.accentColor
+    suspend fun setAccentColor(accent: AccentColor) = appPreferences.setAccentColor(accent)
 
     // ---- First-run coaching ---------------------------------------------------
 

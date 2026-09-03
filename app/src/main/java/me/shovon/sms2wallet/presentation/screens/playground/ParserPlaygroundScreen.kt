@@ -34,6 +34,7 @@ import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * Parser playground, reached from Settings: paste an SMS sender + body and see which registered
@@ -179,7 +180,7 @@ private fun ParserResultHeader(result: ParserMatchResultUiState) {
 @Preview(name = "Parser playground - Light", showBackground = true)
 @Composable
 private fun ParserPlaygroundLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         ParserPlaygroundContent(
             state = SampleData.parserPlayground,
             onBack = {},
@@ -193,7 +194,7 @@ private fun ParserPlaygroundLightPreview() {
 @Preview(name = "Parser playground - Dark", showBackground = true)
 @Composable
 private fun ParserPlaygroundDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         ParserPlaygroundContent(
             state = SampleData.parserPlayground,
             onBack = {},

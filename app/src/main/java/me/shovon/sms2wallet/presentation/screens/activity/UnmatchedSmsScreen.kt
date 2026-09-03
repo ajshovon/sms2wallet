@@ -33,6 +33,7 @@ import me.shovon.sms2wallet.presentation.model.UnmatchedSmsUiState
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * "Unmatched SMS" sub-screen, reached from Activity: raw SMS messages no parser could match, so
@@ -131,7 +132,7 @@ private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
 @Preview(name = "Unmatched SMS - Light", showBackground = true)
 @Composable
 private fun UnmatchedSmsLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         UnmatchedSmsContent(state = SampleData.unmatchedSms, onBack = {})
     }
 }
@@ -139,7 +140,7 @@ private fun UnmatchedSmsLightPreview() {
 @Preview(name = "Unmatched SMS - Dark", showBackground = true)
 @Composable
 private fun UnmatchedSmsDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         UnmatchedSmsContent(state = SampleData.unmatchedSms, onBack = {})
     }
 }
@@ -147,7 +148,7 @@ private fun UnmatchedSmsDarkPreview() {
 @Preview(name = "Unmatched SMS - Empty", showBackground = true)
 @Composable
 private fun UnmatchedSmsEmptyPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         UnmatchedSmsContent(state = SampleData.emptyUnmatchedSms, onBack = {})
     }
 }

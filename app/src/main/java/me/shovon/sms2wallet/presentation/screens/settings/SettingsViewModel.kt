@@ -18,6 +18,7 @@ import me.shovon.sms2wallet.data.remote.WalletApiClient
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.model.AccountMappingRowUiState
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
@@ -70,7 +71,10 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.reminderTimeMinutes,
             settingsRepository.reminderSuppressThreshold,
             settingsRepository.themeMode,
-        ) { enabled, timeMinutes, threshold, theme -> ReminderBits(enabled, timeMinutes, threshold, theme) },
+            settingsRepository.accentColor,
+        ) { enabled, timeMinutes, threshold, theme, accent ->
+            ReminderBits(enabled, timeMinutes, threshold, theme, accent)
+        },
         connectionState,
         settingsRepository.hasToken,
     ) { parserBits, sourceBits, reminderBits, connection, hasToken ->
@@ -106,6 +110,7 @@ class SettingsViewModel @Inject constructor(
             },
             accountMappings = buildAccountMappingRows(sources, mappings, accountNames),
             themeMode = reminderBits.themeMode,
+            accentColor = reminderBits.accentColor,
             reminders = ReminderSettingsUiState(
                 isEnabled = reminderEnabled,
                 hourOfDay = reminderMinutes / MINUTES_PER_HOUR,
@@ -289,6 +294,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
+    fun setAccentColor(accent: AccentColor) {
+        viewModelScope.launch { settingsRepository.setAccentColor(accent) }
+    }
+
     // ---- Reminders ------------------------------------------------------------
 
     fun setReminderEnabled(enabled: Boolean) {
@@ -318,6 +327,7 @@ class SettingsViewModel @Inject constructor(
         val timeMinutes: Int,
         val threshold: Int,
         val themeMode: ThemeMode,
+        val accentColor: AccentColor,
     )
 
     /** Groups the catalogue-related flows so the outer `combine` stays within its arity. */

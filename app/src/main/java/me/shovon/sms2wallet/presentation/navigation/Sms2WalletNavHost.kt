@@ -133,6 +133,7 @@ fun Sms2WalletRootScreen(navController: NavHostController = rememberNavControlle
                     onTestConnection = viewModel::testConnection,
                     onSyncWalletData = viewModel::syncWalletData,
                     onThemeModeChange = viewModel::setThemeMode,
+                    onAccentColorChange = viewModel::setAccentColor,
                     onParserEnabledChange = viewModel::setParserEnabled,
                     onParserAutoPushChange = viewModel::setParserAutoPush,
                     onAccountMappingChange = viewModel::setAccountMapping,

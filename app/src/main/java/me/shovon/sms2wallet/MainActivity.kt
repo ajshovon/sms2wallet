@@ -15,18 +15,22 @@ import me.shovon.sms2wallet.presentation.theme.ThemeViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
-            val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+            val appearance by themeViewModel.appearance.collectAsStateWithLifecycle()
 
-            // Nothing is drawn until the stored preference has been read, so a user on dark or
+            // Nothing is drawn until the stored preferences have been read, so a user on dark or
             // AMOLED never sees a white flash while DataStore loads.
-            if (themeMode == null) return@setContent
+            val settings = appearance ?: return@setContent
 
-            Sms2WalletTheme(themeMode = themeMode!!) {
+            Sms2WalletTheme(
+                themeMode = settings.themeMode,
+                accentColor = settings.accentColor,
+            ) {
                 // Nothing below this gate can do anything useful without SMS access, and the
                 // gate is what triggers the initial inbox backfill once it is granted.
                 SmsPermissionGate {

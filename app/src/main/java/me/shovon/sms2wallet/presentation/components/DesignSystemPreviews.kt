@@ -19,6 +19,7 @@ import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * A gallery of every shared component and the states it can be in.
@@ -155,33 +156,33 @@ private fun GalleryRow(title: String, supporting: String) {
 @Preview(name = "Components - Light", showBackground = true, heightDp = 1900)
 @Composable
 private fun ComponentGalleryLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) { ComponentGallery() }
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) { ComponentGallery() }
 }
 
 @Preview(name = "Components - Dark", showBackground = true, heightDp = 1900)
 @Composable
 private fun ComponentGalleryDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) { ComponentGallery() }
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) { ComponentGallery() }
 }
 
 /** Small-width check: labels, badges and amounts must not clip on a 320dp device. */
 @Preview(name = "Components - Small width", showBackground = true, widthDp = 320, heightDp = 1900)
 @Composable
 private fun ComponentGallerySmallWidthPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) { ComponentGallery() }
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) { ComponentGallery() }
 }
 
 /** Largest system font: the reserved supporting line must still hold one line of text. */
 @Preview(name = "Components - Large font", showBackground = true, fontScale = 1.5f, heightDp = 2400)
 @Composable
 private fun ComponentGalleryLargeFontPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) { ComponentGallery() }
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) { ComponentGallery() }
 }
 
 @Preview(name = "Empty state", showBackground = true, heightDp = 400)
 @Composable
 private fun EmptyStatePreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         EmptyState(
             icon = PhosphorIcons.Inbox,
             title = "Nothing to review",

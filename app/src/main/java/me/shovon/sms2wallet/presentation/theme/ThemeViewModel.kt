@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import me.shovon.sms2wallet.data.repository.SettingsRepository
+import kotlinx.coroutines.flow.combine
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /**
@@ -22,7 +24,13 @@ class ThemeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
-    val themeMode: StateFlow<ThemeMode?> = settingsRepository.themeMode
+    /** Both appearance choices together, so the activity recomposes once when either changes. */
+    data class Appearance(val themeMode: ThemeMode, val accentColor: AccentColor)
+
+    val appearance: StateFlow<Appearance?> = combine(
+        settingsRepository.themeMode,
+        settingsRepository.accentColor,
+    ) { mode, accent -> Appearance(mode, accent) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

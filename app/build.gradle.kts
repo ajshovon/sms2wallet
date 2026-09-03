@@ -133,6 +133,10 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
+    // Generates a full Material 3 tonal palette from a seed colour (HCT). Needed for the accent
+    // picker: Compose only ships wallpaper-derived dynamic colour, not seed-derived schemes.
+    implementation(libs.material.kolor)
+
     testImplementation(libs.junit)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)

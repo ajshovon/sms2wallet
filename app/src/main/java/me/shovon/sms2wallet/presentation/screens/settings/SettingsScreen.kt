@@ -1,8 +1,12 @@
 package me.shovon.sms2wallet.presentation.screens.settings
 
+import android.os.Build
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,11 +33,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.components.AppTextField
 import me.shovon.sms2wallet.presentation.components.GroupedContainer
@@ -44,11 +60,13 @@ import me.shovon.sms2wallet.presentation.model.SettingsUiState
 import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.MotionDuration
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.StandardEasing
+import me.shovon.sms2wallet.presentation.theme.swatch
 
 /**
  * Settings tab: wallet connection, per-provider parser toggles, account mapping, reminders.
@@ -65,6 +83,7 @@ fun SettingsContent(
     onTestConnection: () -> Unit,
     onSyncWalletData: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onAccentColorChange: (AccentColor) -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
     onAccountMappingChange: (String, String) -> Unit,
@@ -87,11 +106,14 @@ fun SettingsContent(
             item(key = "appearance-header") {
                 SectionHeader(title = "Appearance")
             }
-            item(key = "appearance-body") {
-                ThemeModeSelector(
-                    selected = state.themeMode,
-                    onSelect = onThemeModeChange,
-                    modifier = Modifier.padding(bottom = Spacing.xl)
+            item(key = "appearance-theme") {
+                ThemeModeSelector(selected = state.themeMode, onSelect = onThemeModeChange)
+            }
+            item(key = "appearance-accent") {
+                AccentColorPicker(
+                    selected = state.accentColor,
+                    onSelect = onAccentColorChange,
+                    modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.xl)
                 )
             }
 
@@ -226,6 +248,130 @@ private fun ThemeModeSelector(
             )
         }
     }
+}
+
+/**
+ * Accent picker: a row of swatches showing the actual seed each palette is generated from.
+ *
+ * Swatches rather than a list of colour names, because the choice is entirely visual - a name
+ * like "Rose" tells you far less than the colour itself, and the whole row fits on one line so
+ * every option is comparable at a glance without opening anything.
+ *
+ * Selection is a ring drawn *outside* the swatch rather than a check mark on top of it: a mark
+ * placed over the colour would have to be light or dark and so would fail against half the
+ * options, and growing the swatch itself would make the row reflow.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccentColorPicker(
+    selected: AccentColor,
+    onSelect: (AccentColor) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dynamicSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val options = AccentColor.entries.filter { it != AccentColor.DYNAMIC || dynamicSupported }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Accent",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            options.forEach { accent ->
+                AccentSwatch(
+                    accent = accent,
+                    isSelected = accent == selected,
+                    onClick = { onSelect(accent) }
+                )
+            }
+        }
+        // Names the current accent in plain text. A 2dp ring is a thin thing to hang the answer
+        // to "which one is on?" on - especially against seven similar circles - and stating it
+        // means the selection is legible to everyone, and is read aloud by any screen reader that
+        // reaches this line, rather than depending on the swatch's own semantics being surfaced.
+        Text(
+            text = if (selected == AccentColor.DYNAMIC) {
+                "Wallpaper colours - following your system palette."
+            } else {
+                "${selected.spokenLabel().removeSuffix(" accent")} - the rest of the palette is generated from it."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.sm)
+        )
+    }
+}
+
+@Composable
+private fun AccentSwatch(accent: AccentColor, isSelected: Boolean, onClick: () -> Unit) {
+    val ring = MaterialTheme.colorScheme.onSurface
+    Box(
+        modifier = Modifier
+            // The visual dot is 32dp but the tappable box is a full 48dp, so the row stays
+            // compact without shrinking the touch target below the Android minimum.
+            .size(MinTouchTarget)
+            .clip(CircleShape)
+            .selectable(selected = isSelected, onClick = onClick)
+            // One merged, focusable node per swatch carrying label, role and state. The role and
+            // `selected` are set here rather than relying on `selectable` alone because that was
+            // not surfacing them to the accessibility tree, leaving every swatch announced
+            // identically with no indication of which accent was active. stateDescription is the
+            // part a screen reader is guaranteed to speak.
+            .semantics(mergeDescendants = true) {
+                role = Role.RadioButton
+                selected = isSelected
+                contentDescription = accent.spokenLabel()
+                stateDescription = if (isSelected) "Selected" else "Not selected"
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(SWATCH_SIZE)
+                .clip(CircleShape)
+                .background(accent.swatch())
+                .then(
+                    if (isSelected) {
+                        Modifier.border(width = 2.dp, color = ring, shape = CircleShape)
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            // Material You cannot be shown as a single swatch honestly - it is whatever the
+            // wallpaper yields - so it is marked rather than merely coloured.
+            if (accent == AccentColor.DYNAMIC) {
+                Icon(
+                    imageVector = PhosphorIcons.Science,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .size(IconSize.sm)
+                        .align(Alignment.Center)
+                )
+            }
+        }
+    }
+}
+
+private val SWATCH_SIZE = 32.dp
+
+/** Spoken label for a swatch, since a colour alone conveys nothing to a screen reader. */
+private fun AccentColor.spokenLabel(): String = when (this) {
+    AccentColor.DYNAMIC -> "Wallpaper colours"
+    AccentColor.BRAND -> "Teal accent"
+    AccentColor.BLUE -> "Blue accent"
+    AccentColor.VIOLET -> "Violet accent"
+    AccentColor.ROSE -> "Rose accent"
+    AccentColor.AMBER -> "Amber accent"
+    AccentColor.FOREST -> "Forest accent"
 }
 
 /** Short, user-facing name for each mode. "AMOLED" is kept as-is: it is what users search for. */
@@ -413,7 +559,7 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
 @Preview(name = "Settings - Light", showBackground = true)
 @Composable
 private fun SettingsScreenLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         SettingsContent(
             state = SampleData.settings,
             onOpenParserPlayground = {},
@@ -422,6 +568,7 @@ private fun SettingsScreenLightPreview() {
             onTestConnection = {},
             onSyncWalletData = {},
             onThemeModeChange = {},
+            onAccentColorChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },
@@ -435,7 +582,7 @@ private fun SettingsScreenLightPreview() {
 @Preview(name = "Settings - Dark", showBackground = true)
 @Composable
 private fun SettingsScreenDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         SettingsContent(
             state = SampleData.settings.copy(walletConnection = SampleData.walletConnectionSyncing),
             onOpenParserPlayground = {},
@@ -444,6 +591,7 @@ private fun SettingsScreenDarkPreview() {
             onTestConnection = {},
             onSyncWalletData = {},
             onThemeModeChange = {},
+            onAccentColorChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },

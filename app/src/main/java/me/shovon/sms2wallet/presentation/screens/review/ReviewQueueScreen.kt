@@ -51,6 +51,7 @@ import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * Review queue tab: parsed-but-unpushed transactions grouped by day. Swipe right to push,
@@ -350,7 +351,7 @@ private fun QueueSummary(
 @Preview(name = "Review queue - Light", showBackground = true)
 @Composable
 private fun ReviewQueueLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         ReviewQueueContent(
             state = SampleData.reviewQueue,
             onOpenTransaction = {},
@@ -368,7 +369,7 @@ private fun ReviewQueueLightPreview() {
 @Preview(name = "Review queue - Dark", showBackground = true)
 @Composable
 private fun ReviewQueueDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         ReviewQueueContent(
             state = SampleData.reviewQueue,
             onOpenTransaction = {},
@@ -386,7 +387,7 @@ private fun ReviewQueueDarkPreview() {
 @Preview(name = "Review queue - Empty", showBackground = true)
 @Composable
 private fun ReviewQueueEmptyPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         ReviewQueueContent(
             state = SampleData.emptyReviewQueue,
             onOpenTransaction = {},

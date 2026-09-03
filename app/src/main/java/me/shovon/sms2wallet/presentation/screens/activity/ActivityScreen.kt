@@ -40,6 +40,7 @@ import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * Activity tab: the push log (what was sent to Wallet, when, and whether it succeeded), with a
@@ -209,7 +210,7 @@ private fun PushLogRow(
 @Preview(name = "Activity - Light", showBackground = true)
 @Composable
 private fun ActivityScreenLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         ActivityContent(state = SampleData.activity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }
@@ -217,7 +218,7 @@ private fun ActivityScreenLightPreview() {
 @Preview(name = "Activity - Dark", showBackground = true)
 @Composable
 private fun ActivityScreenDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         ActivityContent(state = SampleData.activity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }
@@ -225,7 +226,7 @@ private fun ActivityScreenDarkPreview() {
 @Preview(name = "Activity - Empty", showBackground = true)
 @Composable
 private fun ActivityScreenEmptyPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         ActivityContent(state = SampleData.emptyActivity, onOpenUnmatchedSms = {}, onRetry = {})
     }
 }

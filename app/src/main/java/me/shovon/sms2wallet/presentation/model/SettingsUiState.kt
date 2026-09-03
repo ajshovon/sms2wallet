@@ -1,5 +1,6 @@
 package me.shovon.sms2wallet.presentation.model
 
+import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /** UI state for the "Wallet connection" section of Settings. */
@@ -76,6 +77,7 @@ data class SettingsUiState(
     val walletConnection: WalletConnectionUiState = WalletConnectionUiState(),
     val catalogue: WalletCatalogueUiState = WalletCatalogueUiState(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accentColor: AccentColor = AccentColor.DYNAMIC,
     val parserSettings: List<ParserSettingUiState> = emptyList(),
     val accountMappings: List<AccountMappingRowUiState> = emptyList(),
     val reminders: ReminderSettingsUiState = ReminderSettingsUiState()

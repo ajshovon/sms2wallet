@@ -40,6 +40,7 @@ import me.shovon.sms2wallet.presentation.model.TokenHealth
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
+import me.shovon.sms2wallet.domain.model.AccentColor
 
 /**
  * Home tab: today/this-week push counters, pending review count, last sync time, token
@@ -293,7 +294,7 @@ private val PROGRESS_HEIGHT = 8.dp
 @Preview(name = "Dashboard - Light", showBackground = true)
 @Composable
 private fun DashboardScreenLightPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         DashboardScreen(state = SampleData.dashboard, onAddCashExpense = {}, onViewReviewQueue = {})
     }
 }
@@ -301,7 +302,7 @@ private fun DashboardScreenLightPreview() {
 @Preview(name = "Dashboard - Dark", showBackground = true)
 @Composable
 private fun DashboardScreenDarkPreview() {
-    Sms2WalletTheme(themeMode = ThemeMode.DARK, useDynamicColor = false) {
+    Sms2WalletTheme(themeMode = ThemeMode.DARK, accentColor = AccentColor.BRAND) {
         DashboardScreen(state = SampleData.dashboard, onAddCashExpense = {}, onViewReviewQueue = {})
     }
 }
