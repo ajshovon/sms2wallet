@@ -10,6 +10,8 @@ import me.shovon.sms2wallet.data.local.dao.AccountMappingDao
 import me.shovon.sms2wallet.data.local.dao.CategoryRuleDao
 import me.shovon.sms2wallet.data.local.dao.TransactionDao
 import me.shovon.sms2wallet.data.local.dao.UnmatchedSmsDao
+import me.shovon.sms2wallet.data.local.dao.WalletCategoryDao
+import me.shovon.sms2wallet.data.notification.TransactionNotifier
 import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.push.PushScheduler
 
@@ -30,6 +32,8 @@ object SmsIngestModule {
         unmatchedSmsDao: UnmatchedSmsDao,
         appPreferences: AppPreferences,
         pushScheduler: PushScheduler,
+        walletCategoryDao: WalletCategoryDao,
+        notifier: TransactionNotifier,
     ): IngestSink = RoomIngestSink(
         transactionDao = transactionDao,
         accountMappingDao = accountMappingDao,
@@ -38,6 +42,10 @@ object SmsIngestModule {
         // Read lazily on every call (mirrors KtorWalletApiClient's tokenProvider) since the user
         // can change which banks auto-push at any time from settings.
         autoPushBankNames = { appPreferences.autoPushParserNames.first() },
+        walletCategories = { walletCategoryDao.observeAll().first() },
         onQueued = { pushScheduler.schedule() },
+        onIngested = { id, merchant, amount, type, needsReview ->
+            notifier.notifyIngested(id, merchant, amount, type, needsReview)
+        },
     )
 }

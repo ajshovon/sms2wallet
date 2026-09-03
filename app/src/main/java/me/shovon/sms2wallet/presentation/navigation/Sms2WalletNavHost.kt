@@ -42,7 +42,19 @@ import me.shovon.sms2wallet.presentation.screens.settings.SettingsViewModel
  * playground, unmatched SMS).
  */
 @Composable
-fun Sms2WalletRootScreen(navController: NavHostController = rememberNavController()) {
+fun Sms2WalletRootScreen(
+    navController: NavHostController = rememberNavController(),
+    openTransactionId: Long? = null,
+    onTransactionOpened: () -> Unit = {},
+) {
+    // Navigate straight to the transaction a notification was tapped for. Keyed on the id so it
+    // fires once per notification and not again on every recomposition.
+    LaunchedEffect(openTransactionId) {
+        val id = openTransactionId ?: return@LaunchedEffect
+        navController.navigate(Sms2WalletDestination.TransactionDetail.createRoute(id.toString()))
+        onTransactionOpened()
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val showBottomBar = bottomNavItems.any { item ->

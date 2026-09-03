@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Notification small-icon. Android masks this to a silhouette, so it must be a single flat
+    shape with transparency - a tinted or multi-colour drawable renders as a solid blob.
+    Shape: a chat bubble (the SMS the transaction came from) with a coin inside.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M20,2H4C2.9,2 2,2.9 2,4v12c0,1.1 0.9,2 2,2h4l4,4 4,-4h4c1.1,0 2,-0.9 2,-2V4C22,2.9 21.1,2 20,2zM13,14h-2v-1H9v-2h4v-1h-3c-0.55,0 -1,-0.45 -1,-1V7c0,-0.55 0.45,-1 1,-1h1V5h2v1h2v2h-4v1h3c0.55,0 1,0.45 1,1v2c0,0.55 -0.45,1 1,1h-1V14z" />
+</vector>

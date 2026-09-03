@@ -11,6 +11,8 @@ import me.shovon.sms2wallet.data.local.dao.UnmatchedSmsDao
 import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
 import me.shovon.sms2wallet.data.local.entity.TransactionEntity
 import me.shovon.sms2wallet.data.local.entity.UnmatchedSmsEntity
+import me.shovon.sms2wallet.data.local.entity.WalletCategoryEntity
+import me.shovon.sms2wallet.domain.category.MerchantCategoryGuesser
 import me.shovon.sms2wallet.domain.model.PushState
 
 private const val TAG = "RoomIngestSink"
@@ -47,6 +49,8 @@ class RoomIngestSink(
     private val categoryRuleDao: CategoryRuleDao,
     private val unmatchedSmsDao: UnmatchedSmsDao,
     private val autoPushBankNames: suspend () -> Set<String>,
+    /** The user's synced Wallet categories, read lazily so a fresh sync is picked up. */
+    private val walletCategories: suspend () -> List<WalletCategoryEntity>,
     /**
      * Invoked after a row is stored in [PushState.QUEUED], to kick off the send.
      *
@@ -54,6 +58,14 @@ class RoomIngestSink(
      * unit-testable object with no Android/WorkManager types in its constructor.
      */
     private val onQueued: () -> Unit = {},
+    /**
+     * Called once a transaction has been stored: (id, merchant, amount, type, needsReview).
+     *
+     * A callback rather than a `TransactionNotifier` dependency so this class stays a plain
+     * unit-testable object with no Android types in its constructor.
+     */
+    private val onIngested: (Long, String?, java.math.BigDecimal, String, Boolean) -> Unit =
+        { _, _, _, _, _ -> },
     private val debugLog: (String) -> Unit = { message -> Log.d(TAG, message) },
 ) : IngestSink {
 
@@ -66,10 +78,7 @@ class RoomIngestSink(
     }
 
     private suspend fun acceptParsed(parsedTransaction: ParsedTransaction) {
-        val mapping = accountMappingDao.findByBankAndLast4(
-            bankName = parsedTransaction.bankName,
-            accountLast4 = parsedTransaction.accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4,
-        )
+        val mapping = resolveMapping(parsedTransaction)
 
         val pushState = resolveInitialPushState(parsedTransaction, mapping)
         val duplicateOfId = mapping?.walletAccountId?.let { walletAccountId ->
@@ -116,11 +125,36 @@ class RoomIngestSink(
             return
         }
 
-        if (resolvedPushState == PushState.QUEUED) {
+        val autoPushed = resolvedPushState == PushState.QUEUED
+        if (autoPushed) {
             // An auto-pushed row is only queued here; this is what actually starts the send.
             onQueued()
         }
+
+        // Tell the user either way: silently filing a transaction they never saw is exactly the
+        // behaviour that makes people distrust an app that touches their money.
+        onIngested(
+            insertedId,
+            parsedTransaction.merchant,
+            parsedTransaction.amount,
+            parsedTransaction.type.name,
+            !autoPushed,
+        )
     }
+
+    /**
+     * The mapping to route this transaction with: the exact (bank, last-4) pair if one exists,
+     * otherwise any mapping for the bank.
+     *
+     * Without the fallback, mapping a provider only covered messages whose last-4 happened to
+     * match the one present when the mapping was made, so most transactions still arrived with
+     * no account attached.
+     */
+    private suspend fun resolveMapping(parsedTransaction: ParsedTransaction): AccountMappingEntity? =
+        accountMappingDao.findByBankAndLast4(
+            bankName = parsedTransaction.bankName,
+            accountLast4 = parsedTransaction.accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4,
+        ) ?: accountMappingDao.findAnyByBank(parsedTransaction.bankName)
 
     /**
      * A source (bank + last-4, see [AccountMappingEntity.UNKNOWN_LAST4]) with no
@@ -173,11 +207,16 @@ class RoomIngestSink(
     ): String? {
         val merchant = parsedTransaction.merchant
         if (!merchant.isNullOrBlank()) {
+            // User-defined rules win: they are an explicit decision about this merchant.
             val rules = categoryRuleDao.findApplicableRules(parsedTransaction.bankName)
             val matched = rules.firstOrNull { rule ->
                 merchant.contains(rule.keyword, ignoreCase = true)
             }
             if (matched != null) return matched.walletCategoryId
+
+            // Then the built-in merchant map, resolved against the user's own categories.
+            val guessed = MerchantCategoryGuesser.guess(merchant, walletCategories())
+            if (guessed != null) return guessed
         }
         return mapping?.defaultCategoryId
     }

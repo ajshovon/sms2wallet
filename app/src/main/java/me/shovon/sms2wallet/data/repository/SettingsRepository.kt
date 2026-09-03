@@ -83,6 +83,20 @@ class SettingsRepository @Inject constructor(
     // ---- Account mappings -----------------------------------------------------
 
     fun observeAccountMappings(): Flow<List<AccountMappingEntity>> = accountMappingDao.observeAll()
+
+    /**
+     * The mapping that should route a transaction from this source: the exact (bank, last-4)
+     * pair when one exists, otherwise any mapping for the bank.
+     *
+     * Used to fill in an account for rows that were ingested *before* the user created the
+     * mapping - those were stored with no account, and would otherwise stay unroutable forever
+     * even though the mapping now exists.
+     */
+    suspend fun findMappingFor(bankName: String, accountLast4: String?): AccountMappingEntity? =
+        accountMappingDao.findByBankAndLast4(
+            bankName = bankName,
+            accountLast4 = accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4,
+        ) ?: accountMappingDao.findAnyByBank(bankName)
     suspend fun upsertAccountMapping(mapping: AccountMappingEntity): Long = accountMappingDao.upsert(mapping)
     suspend fun deleteAccountMapping(mapping: AccountMappingEntity) = accountMappingDao.delete(mapping)
 

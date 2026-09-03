@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.shovon.bdparser.TransactionType
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
+import me.shovon.sms2wallet.domain.category.MerchantCategoryGuesser
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
@@ -30,6 +32,7 @@ import me.shovon.sms2wallet.presentation.navigation.Sms2WalletDestination
 class TransactionDetailViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val walletSyncRepository: WalletSyncRepository,
+    private val settingsRepository: SettingsRepository,
     private val pushScheduler: PushScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -57,11 +60,22 @@ class TransactionDetailViewModel @Inject constructor(
         val accounts = walletSyncRepository.accounts.first()
         val categories = walletSyncRepository.categories.first()
 
+        // Fall back to the account mapping when the row itself carries none. A transaction
+        // ingested before the user mapped its provider was stored without an account; without
+        // this it would open with an empty picker even though a mapping now exists.
+        val accountId = entity.walletAccountId
+            ?: settingsRepository.findMappingFor(entity.bankName, entity.accountLast4)?.walletAccountId
+
+        // Same for the category: guess from the merchant when nothing is stored, so the common
+        // case is one tap (confirm) rather than two (choose, then confirm).
+        val categoryId = entity.walletCategoryId
+            ?: MerchantCategoryGuesser.guess(entity.merchant, categories)
+
         _uiState.value = entity.toDetailUiState(
             availableAccounts = accounts.map { it.name },
             availableCategories = categories.map { it.name },
-            accountName = accounts.firstOrNull { it.id == entity.walletAccountId }?.name.orEmpty(),
-            categoryName = categories.firstOrNull { it.id == entity.walletCategoryId }?.name.orEmpty(),
+            accountName = accounts.firstOrNull { it.id == accountId }?.name.orEmpty(),
+            categoryName = categories.firstOrNull { it.id == categoryId }?.name.orEmpty(),
         ).copy(isSaving = false)
     }
 

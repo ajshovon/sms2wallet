@@ -47,6 +47,9 @@ class RoomIngestSinkTest {
         categoryRuleDao = categoryRuleDao,
         unmatchedSmsDao = unmatchedSmsDao,
         autoPushBankNames = autoPushBankNames,
+        // No synced categories in these tests, so the built-in merchant guesser stays inert and
+        // the expectations below are about the rule/mapping logic only.
+        walletCategories = { emptyList() },
         // The default debugLog hits android.util.Log, which is unmocked under plain JUnit (no
         // Robolectric here) - use a no-op so exercising the dedup path doesn't crash the test.
         debugLog = {},
@@ -437,6 +440,10 @@ private class FakeAccountMappingDao : AccountMappingDao {
 
     override suspend fun findByBankAndLast4(bankName: String, accountLast4: String): AccountMappingEntity? =
         mappings.firstOrNull { it.bankName == bankName && it.accountLast4 == accountLast4 }
+
+    override suspend fun findAnyByBank(bankName: String): AccountMappingEntity? =
+        mappings.filter { it.bankName == bankName }
+            .minByOrNull { if (it.accountLast4.isEmpty()) 0 else 1 }
 }
 
 /** In-memory fake of [CategoryRuleDao]. */
