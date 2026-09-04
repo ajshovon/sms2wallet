@@ -8,7 +8,9 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.okhttp.OkHttp
 import javax.inject.Singleton
 import me.shovon.sms2wallet.data.prefs.SecureTokenStore
+import me.shovon.sms2wallet.data.remote.GeminiNaturalLanguageParser
 import me.shovon.sms2wallet.data.remote.KtorWalletApiClient
+import me.shovon.sms2wallet.data.remote.NaturalLanguageParser
 import me.shovon.sms2wallet.data.remote.WalletApiClient
 
 /**
@@ -35,5 +37,20 @@ object NetworkModule {
     ): WalletApiClient = KtorWalletApiClient(
         engine = engine,
         tokenProvider = { secureTokenStore.getToken() },
+    )
+
+    /**
+     * Shares the OkHttp engine with the Wallet client - one connection pool and one set of
+     * threads for the whole app - while keeping the two credentials strictly separate: this
+     * provider only ever reads the Gemini key, and the Wallet token is never in scope here.
+     */
+    @Provides
+    @Singleton
+    fun provideNaturalLanguageParser(
+        engine: HttpClientEngine,
+        secureTokenStore: SecureTokenStore,
+    ): NaturalLanguageParser = GeminiNaturalLanguageParser(
+        engine = engine,
+        apiKeyProvider = { secureTokenStore.getGeminiApiKey() },
     )
 }

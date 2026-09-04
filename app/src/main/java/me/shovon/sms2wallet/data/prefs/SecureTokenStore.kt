@@ -49,19 +49,17 @@ class SecureTokenStore(
     private val dataStore get() = context.secureTokenDataStore
 
     /** True once an (encrypted) token blob is present, without ever decrypting it. */
-    val hasToken: Flow<Boolean> = dataStore.data
-        .catch { emit(emptyPreferences()) }
-        .map { it[TOKEN_KEY] != null }
+    val hasToken: Flow<Boolean> = presenceOf(TOKEN_KEY)
+
+    /**
+     * True once a Gemini API key is stored. Kept in the same encrypted store as the Wallet
+     * token: it is the same class of secret - a bearer credential that bills the user's account
+     * if it leaks - and giving it a weaker home would be the only thing that made it weaker.
+     */
+    val hasGeminiApiKey: Flow<Boolean> = presenceOf(GEMINI_API_KEY_KEY)
 
     /** Encrypts [token] with a fresh random IV and persists `Base64(iv + ciphertext)`. */
-    suspend fun saveToken(token: String) {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-        val iv = cipher.iv
-        val ciphertext = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
-        val payload = Base64.encodeToString(iv + ciphertext, Base64.NO_WRAP)
-        dataStore.edit { prefs -> prefs[TOKEN_KEY] = payload }
-    }
+    suspend fun saveToken(token: String) = putEncrypted(TOKEN_KEY, token)
 
     /**
      * Decrypts and returns the stored token, or null if none is stored.
@@ -72,14 +70,48 @@ class SecureTokenStore(
      * is cleared and null is returned rather than throwing - the caller simply re-prompts the
      * user to re-enter their token.
      */
-    suspend fun getToken(): String? {
+    suspend fun getToken(): String? = readEncrypted(TOKEN_KEY)
+
+    suspend fun clearToken() {
+        dataStore.edit { prefs -> prefs.remove(TOKEN_KEY) }
+    }
+
+    suspend fun saveGeminiApiKey(apiKey: String) = putEncrypted(GEMINI_API_KEY_KEY, apiKey)
+
+    /** Decrypts and returns the stored Gemini API key, or null. Must never be logged. */
+    suspend fun getGeminiApiKey(): String? = readEncrypted(GEMINI_API_KEY_KEY)
+
+    suspend fun clearGeminiApiKey() {
+        dataStore.edit { prefs -> prefs.remove(GEMINI_API_KEY_KEY) }
+    }
+
+    // ---- Shared crypto -------------------------------------------------------------
+
+    private fun presenceOf(key: Preferences.Key<String>): Flow<Boolean> = dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[key] != null }
+
+    private suspend fun putEncrypted(key: Preferences.Key<String>, value: String) {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        val payload = Base64.encodeToString(iv + ciphertext, Base64.NO_WRAP)
+        dataStore.edit { prefs -> prefs[key] = payload }
+    }
+
+    /**
+     * Mirrors [getToken]'s failure handling: an undecryptable blob is cleared and reported as
+     * absent, so the user is re-prompted instead of being stuck behind a permanent error.
+     */
+    private suspend fun readEncrypted(key: Preferences.Key<String>): String? {
         val encoded = dataStore.data
             .catch { emit(emptyPreferences()) }
-            .first()[TOKEN_KEY] ?: return null
+            .first()[key] ?: return null
 
         return try {
             val combined = Base64.decode(encoded, Base64.NO_WRAP)
-            if (combined.size <= GCM_IV_LENGTH_BYTES) return clearAndReturnNull()
+            if (combined.size <= GCM_IV_LENGTH_BYTES) return clearAndReturnNull(key)
             val iv = combined.copyOfRange(0, GCM_IV_LENGTH_BYTES)
             val ciphertext = combined.copyOfRange(GCM_IV_LENGTH_BYTES, combined.size)
 
@@ -87,25 +119,20 @@ class SecureTokenStore(
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
             String(cipher.doFinal(ciphertext), Charsets.UTF_8)
         } catch (e: KeyPermanentlyInvalidatedException) {
-            clearAndReturnNull()
+            clearAndReturnNull(key)
         } catch (e: AEADBadTagException) {
-            clearAndReturnNull()
+            clearAndReturnNull(key)
         } catch (e: BadPaddingException) {
-            clearAndReturnNull()
+            clearAndReturnNull(key)
         } catch (e: IllegalBlockSizeException) {
-            clearAndReturnNull()
+            clearAndReturnNull(key)
         } catch (e: IllegalArgumentException) {
-            // Malformed Base64 payload.
-            clearAndReturnNull()
+            clearAndReturnNull(key)
         }
     }
 
-    suspend fun clearToken() {
-        dataStore.edit { prefs -> prefs.remove(TOKEN_KEY) }
-    }
-
-    private suspend fun clearAndReturnNull(): String? {
-        clearToken()
+    private suspend fun clearAndReturnNull(key: Preferences.Key<String>): String? {
+        dataStore.edit { prefs -> prefs.remove(key) }
         return null
     }
 
@@ -135,5 +162,6 @@ class SecureTokenStore(
         const val GCM_TAG_LENGTH_BITS = 128
         const val GCM_IV_LENGTH_BYTES = 12
         val TOKEN_KEY = stringPreferencesKey("encrypted_wallet_token")
+        val GEMINI_API_KEY_KEY = stringPreferencesKey("encrypted_gemini_api_key")
     }
 }

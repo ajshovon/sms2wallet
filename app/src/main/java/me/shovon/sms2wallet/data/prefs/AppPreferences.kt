@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import me.shovon.bdparser.bank.BankParser
 import me.shovon.sms2wallet.domain.model.AccentColor
+import me.shovon.sms2wallet.domain.model.IntelligenceSettings
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.bdparser.bank.BankParserRegistry
@@ -135,6 +136,49 @@ class AppPreferences(
         dataStore.edit { it[ACCENT_COLOR_KEY] = accent.name }
     }
 
+    // ---- Intelligence (natural-language entry) ------------------------------------
+
+    /**
+     * Everything about what the natural-language parser may send to Google.
+     *
+     * Emitted as one value rather than four flows because callers always need the whole set at
+     * once: building a request with a stale "share accounts" flag next to a fresh account list
+     * is exactly the mistake that would leak a name the user had just switched off.
+     */
+    val intelligenceSettings: Flow<IntelligenceSettings> = safeData.map { prefs ->
+        IntelligenceSettings(
+            model = prefs[GEMINI_MODEL_KEY] ?: IntelligenceSettings.DEFAULT_MODEL,
+            shareCategoryNames = prefs[SHARE_CATEGORY_NAMES_KEY] ?: true,
+            shareAccountNames = prefs[SHARE_ACCOUNT_NAMES_KEY] ?: false,
+            defaultAccountId = prefs[DEFAULT_ACCOUNT_ID_KEY],
+        )
+    }
+
+    /**
+     * The account new transactions default to. Also read on its own by the manual add screen,
+     * which cares about the default but nothing else in [intelligenceSettings].
+     */
+    val defaultAccountId: Flow<String?> = safeData.map { it[DEFAULT_ACCOUNT_ID_KEY] }
+
+    suspend fun setGeminiModel(model: String) {
+        dataStore.edit { it[GEMINI_MODEL_KEY] = model }
+    }
+
+    suspend fun setShareCategoryNames(share: Boolean) {
+        dataStore.edit { it[SHARE_CATEGORY_NAMES_KEY] = share }
+    }
+
+    suspend fun setShareAccountNames(share: Boolean) {
+        dataStore.edit { it[SHARE_ACCOUNT_NAMES_KEY] = share }
+    }
+
+    /** Pass null to clear the default and fall back to the first cached account. */
+    suspend fun setDefaultAccountId(accountId: String?) {
+        dataStore.edit { prefs ->
+            if (accountId == null) prefs.remove(DEFAULT_ACCOUNT_ID_KEY) else prefs[DEFAULT_ACCOUNT_ID_KEY] = accountId
+        }
+    }
+
     // ---- First-run coaching -------------------------------------------------------
 
     /**
@@ -185,5 +229,9 @@ class AppPreferences(
         val HAS_ACTED_ON_REVIEW_KEY = booleanPreferencesKey("has_acted_on_review_queue")
         val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
         val ACCENT_COLOR_KEY = stringPreferencesKey("accent_color")
+        val GEMINI_MODEL_KEY = stringPreferencesKey("gemini_model")
+        val SHARE_CATEGORY_NAMES_KEY = booleanPreferencesKey("intelligence_share_category_names")
+        val SHARE_ACCOUNT_NAMES_KEY = booleanPreferencesKey("intelligence_share_account_names")
+        val DEFAULT_ACCOUNT_ID_KEY = stringPreferencesKey("default_wallet_account_id")
     }
 }
