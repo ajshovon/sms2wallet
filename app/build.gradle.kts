@@ -81,6 +81,7 @@ android {
     kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
+            freeCompilerArgs.addAll("-Xannotation-default-target=param-property")
         }
     }
 

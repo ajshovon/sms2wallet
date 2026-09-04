@@ -29,7 +29,7 @@ import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 
 /**
  * "Reminders" settings section: daily reminder on/off, a time picker, and a stepper for
@@ -97,7 +97,7 @@ fun RemindersSection(
                         enabled = state.isEnabled,
                         modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
-                        Icon(PhosphorIcons.Remove, contentDescription = "Decrease")
+                        Icon(SolarIcons.Remove, contentDescription = "Decrease")
                     }
                     Text(state.skipIfAlreadyLoggedCount.toString(), style = MaterialTheme.typography.titleMedium)
                     IconButton(
@@ -105,7 +105,7 @@ fun RemindersSection(
                         enabled = state.isEnabled,
                         modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
-                        Icon(PhosphorIcons.Add, contentDescription = "Increase")
+                        Icon(SolarIcons.Add, contentDescription = "Increase")
                     }
                 }
             }

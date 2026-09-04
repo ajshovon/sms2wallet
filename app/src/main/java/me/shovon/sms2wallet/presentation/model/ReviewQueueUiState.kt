@@ -17,11 +17,12 @@ data class ReviewTransactionUiState(
     val accountLast4: String,
     val timeLabel: String,
     val category: String? = null,
+    val accountName: String? = null,
     val isSuspectedDuplicate: Boolean = false,
     val needsVerification: Boolean = false
 ) {
     /** True when this row is flagged for a reason the user has to look at before pushing. */
-    val needsAttention: Boolean get() = isSuspectedDuplicate || needsVerification
+    val needsAttention: Boolean get() = isSuspectedDuplicate || needsVerification || accountName == null
 
     /**
      * The one-line provenance caption: "bKash •••• 1234 • 9:02 AM", collapsing to

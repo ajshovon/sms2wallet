@@ -11,8 +11,25 @@ data class DashboardUiState(
     val lastSyncLabel: String? = null,
     val tokenHealth: TokenHealth = TokenHealth.UNKNOWN,
     val rateLimit: RateLimitUiState = RateLimitUiState(),
+    val quickAdd: QuickAddUiState = QuickAddUiState(),
     val isLoading: Boolean = false
 )
+
+/**
+ * The "type it" box at the top of the dashboard.
+ *
+ * [isAvailable] is false until a Gemini API key is stored. The field is hidden rather than
+ * disabled in that state: a permanently greyed-out control on the home screen is clutter that
+ * explains nothing, and the feature is opt-in by design.
+ */
+data class QuickAddUiState(
+    val isAvailable: Boolean = false,
+    val input: String = "",
+    val isParsing: Boolean = false,
+    val errorMessage: String? = null
+) {
+    val canSubmit: Boolean get() = input.isNotBlank() && !isParsing
+}
 
 /** Health of the stored BudgetBakers Wallet API token, surfaced on the dashboard. */
 enum class TokenHealth {

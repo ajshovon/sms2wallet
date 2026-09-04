@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import me.shovon.sms2wallet.data.local.dao.WalletAccountDao
+import me.shovon.sms2wallet.data.local.dao.WalletCategoryDao
 import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
@@ -30,6 +32,8 @@ import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
 class ReviewQueueViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val settingsRepository: SettingsRepository,
+    private val walletCategoryDao: WalletCategoryDao,
+    private val walletAccountDao: WalletAccountDao,
     private val pushScheduler: PushScheduler,
 ) : ViewModel() {
 
@@ -37,10 +41,14 @@ class ReviewQueueViewModel @Inject constructor(
 
     val uiState: StateFlow<ReviewQueueUiState> = combine(
         transactionRepository.observeReviewQueue(),
+        walletCategoryDao.observeAll(),
+        walletAccountDao.observeAll(),
         selection,
         settingsRepository.hasActedOnReviewQueue,
-    ) { transactions, selectionState, hasActed ->
-        val groups = transactions.toReviewQueueGroups()
+    ) { transactions, categories, accounts, selectionState, hasActed ->
+        val categoriesById = categories.associate { it.id to it.name }
+        val accountsById = accounts.associate { it.id to it.name }
+        val groups = transactions.toReviewQueueGroups(categoriesById, accountsById)
         val visibleIds = transactions.mapTo(mutableSetOf()) { it.id.toString() }
         ReviewQueueUiState(
             groups = groups,

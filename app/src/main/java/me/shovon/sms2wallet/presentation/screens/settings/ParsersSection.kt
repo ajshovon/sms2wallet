@@ -13,7 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
+import me.shovon.sms2wallet.presentation.components.ProviderAvatar
 import me.shovon.sms2wallet.presentation.components.StatusBadge
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
@@ -21,11 +23,9 @@ import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
- * One provider row in the "Parsers" settings section: two independent switches (Enabled,
- * Auto-push) plus a caption naming the mapped Wallet account, or a warning "Not mapped" state.
- *
- * Auto-push is disabled and explained when there is no mapping, since it cannot do anything
- * without one - a switch that silently does nothing is worse than one that says why it can't.
+ * One provider row in the "Parsers" settings section: distinct provider avatar branding,
+ * two independent switches (Enabled, Auto-push) plus a caption naming the mapped Wallet account,
+ * or a warning "Not mapped" state.
  */
 @Composable
 fun ParserSettingRow(
@@ -47,19 +47,23 @@ fun ParserSettingRow(
         ) {
             SettingToggleRow(
                 title = setting.providerName,
-                titleStyle = MaterialTheme.typography.bodyLarge,
-                titleWeight = FontWeight.Medium,
+                titleStyle = MaterialTheme.typography.titleMedium,
+                titleWeight = FontWeight.SemiBold,
                 checked = setting.isEnabled,
-                onCheckedChange = onEnabledChange
+                onCheckedChange = onEnabledChange,
+                leading = {
+                    ProviderAvatar(providerName = setting.providerName, size = 36.dp)
+                }
             )
 
             SettingToggleRow(
-                title = "Auto-push",
+                title = "Auto-push to Wallet",
                 titleStyle = MaterialTheme.typography.bodyMedium,
                 titleWeight = FontWeight.Normal,
                 checked = setting.isAutoPushEnabled && setting.isMapped,
                 enabled = setting.isEnabled && setting.isMapped,
                 onCheckedChange = onAutoPushChange,
+                modifier = Modifier.padding(start = 48.dp),
                 supporting = {
                     when {
                         !setting.isMapped -> Row(
@@ -89,8 +93,7 @@ fun ParserSettingRow(
 }
 
 /**
- * Label-plus-switch row with an optional supporting line beneath the label. Shared by both
- * switches above so their alignment and disabled treatment cannot drift apart.
+ * Label-plus-switch row with an optional leading avatar and supporting text beneath the label.
  */
 @Composable
 private fun SettingToggleRow(
@@ -101,6 +104,7 @@ private fun SettingToggleRow(
     titleWeight: FontWeight,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    leading: @Composable (() -> Unit)? = null,
     supporting: @Composable (() -> Unit)? = null
 ) {
     Row(
@@ -108,6 +112,8 @@ private fun SettingToggleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
+        leading?.invoke()
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -116,7 +122,7 @@ private fun SettingToggleRow(
                 color = if (enabled) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 }
             )
             supporting?.invoke()

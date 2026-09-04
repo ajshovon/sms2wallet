@@ -1,6 +1,7 @@
 package me.shovon.sms2wallet.presentation.model
 
 import me.shovon.sms2wallet.domain.model.AccentColor
+import me.shovon.sms2wallet.domain.model.IntelligenceSettings
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
 /** UI state for the "Wallet connection" section of Settings. */
@@ -72,6 +73,28 @@ data class WalletCatalogueUiState(
     val errorMessage: String? = null
 )
 
+/**
+ * UI state for the "Intelligence" section: the Gemini key, and exactly what is shared with it.
+ *
+ * Like [WalletConnectionUiState], the stored key is never held here - only [hasStoredKey]. The
+ * sharing switches are state the user reads to answer "what is leaving my phone?", so they are
+ * driven by the persisted settings rather than by anything transient.
+ */
+data class IntelligenceUiState(
+    val apiKeyInput: String = "",
+    val hasStoredKey: Boolean = false,
+    val isKeyVisible: Boolean = false,
+    val isTesting: Boolean = false,
+    val status: ConnectionStatus = ConnectionStatus.NotTested,
+    val model: String = IntelligenceSettings.DEFAULT_MODEL,
+    val modelOptions: List<String> = IntelligenceSettings.MODEL_OPTIONS,
+    val shareCategoryNames: Boolean = true,
+    val shareAccountNames: Boolean = false,
+    /** Null when no default is set, in which case the first cached account is used. */
+    val defaultAccountName: String? = null,
+    val availableAccountNames: List<String> = emptyList()
+)
+
 /** Aggregate UI state for the whole Settings screen. */
 data class SettingsUiState(
     val walletConnection: WalletConnectionUiState = WalletConnectionUiState(),
@@ -80,5 +103,6 @@ data class SettingsUiState(
     val accentColor: AccentColor = AccentColor.DYNAMIC,
     val parserSettings: List<ParserSettingUiState> = emptyList(),
     val accountMappings: List<AccountMappingRowUiState> = emptyList(),
-    val reminders: ReminderSettingsUiState = ReminderSettingsUiState()
+    val reminders: ReminderSettingsUiState = ReminderSettingsUiState(),
+    val intelligence: IntelligenceUiState = IntelligenceUiState()
 )

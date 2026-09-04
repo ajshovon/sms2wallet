@@ -16,6 +16,8 @@ import me.shovon.sms2wallet.presentation.model.ParserMatchResultUiState
 import me.shovon.sms2wallet.presentation.model.ParserPlaygroundUiState
 import me.shovon.sms2wallet.presentation.util.MoneyFormatter
 
+import androidx.lifecycle.SavedStateHandle
+
 /**
  * Parser playground: runs every registered parser against a pasted SMS and reports what each
  * one extracted.
@@ -25,10 +27,26 @@ import me.shovon.sms2wallet.presentation.util.MoneyFormatter
  * frame drop on the main thread.
  */
 @HiltViewModel
-class ParserPlaygroundViewModel @Inject constructor() : ViewModel() {
+class ParserPlaygroundViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ParserPlaygroundUiState())
+    private val initialSender = savedStateHandle.get<String>("sender").orEmpty()
+    private val initialBody = savedStateHandle.get<String>("body").orEmpty()
+
+    private val _uiState = MutableStateFlow(
+        ParserPlaygroundUiState(
+            senderInput = initialSender,
+            bodyInput = initialBody
+        )
+    )
     val uiState: StateFlow<ParserPlaygroundUiState> = _uiState.asStateFlow()
+
+    init {
+        if (initialBody.isNotBlank()) {
+            run()
+        }
+    }
 
     fun onSenderChange(value: String) { _uiState.value = _uiState.value.copy(senderInput = value) }
     fun onBodyChange(value: String) { _uiState.value = _uiState.value.copy(bodyInput = value) }

@@ -70,7 +70,7 @@ class TransactionReconciler(
                 val match = result.data.firstOrNull()
                 if (match?.id != null) {
                     // The server does hold it: adopt the record instead of sending again.
-                    transactionDao.markPushed(id = row.id, walletRecordId = match.id!!)
+                    transactionDao.markPushed(id = row.id, walletRecordId = match.id)
                     log(row, success = true, "Reconciled: Wallet already had this record")
                     false
                 } else {

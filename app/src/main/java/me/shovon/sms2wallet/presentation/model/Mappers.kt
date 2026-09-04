@@ -37,7 +37,10 @@ fun directionFromTypeName(typeName: String?): TransactionDirection {
 fun parseStoredAmount(amount: String?): BigDecimal =
     amount?.let { runCatching { BigDecimal(it) }.getOrNull() } ?: BigDecimal.ZERO
 
-fun TransactionEntity.toReviewUiState(): ReviewTransactionUiState = ReviewTransactionUiState(
+fun TransactionEntity.toReviewUiState(
+    categoryName: String? = null,
+    accountName: String? = null,
+): ReviewTransactionUiState = ReviewTransactionUiState(
     id = id.toString(),
     // A parser that could not name the counterparty still has to render as something the user
     // can recognise, so fall back to the bank rather than showing an empty card.
@@ -47,6 +50,8 @@ fun TransactionEntity.toReviewUiState(): ReviewTransactionUiState = ReviewTransa
     providerName = bankName,
     accountLast4 = accountLast4?.takeIf { it.isNotBlank() } ?: "----",
     timeLabel = TimeFormatter.timeLabel(timestamp),
+    category = categoryName,
+    accountName = accountName,
     isSuspectedDuplicate = suspectedDuplicateOfId != null,
     needsVerification = pushState == PushState.NEEDS_VERIFY.name,
 )
@@ -55,9 +60,22 @@ fun TransactionEntity.toReviewUiState(): ReviewTransactionUiState = ReviewTransa
  * Groups newest-first transactions into day buckets. Relies on the DAO already ordering by
  * timestamp DESC, so a [LinkedHashMap] preserves that order for both groups and rows.
  */
-fun List<TransactionEntity>.toReviewQueueGroups(): List<ReviewQueueDayGroup> =
+fun List<TransactionEntity>.toReviewQueueGroups(
+    categoriesById: Map<String, String> = emptyMap(),
+    accountsById: Map<String, String> = emptyMap(),
+): List<ReviewQueueDayGroup> =
     groupByTo(LinkedHashMap()) { TimeFormatter.dayLabel(it.timestamp) }
-        .map { (dayLabel, rows) -> ReviewQueueDayGroup(dayLabel, rows.map { it.toReviewUiState() }) }
+        .map { (dayLabel, rows) ->
+            ReviewQueueDayGroup(
+                dayLabel = dayLabel,
+                transactions = rows.map { row ->
+                    row.toReviewUiState(
+                        categoryName = row.walletCategoryId?.let { categoriesById[it] },
+                        accountName = row.walletAccountId?.let { accountsById[it] }
+                    )
+                }
+            )
+        }
 
 fun UnmatchedSmsEntity.toUiState(): UnmatchedSmsUiState = UnmatchedSmsUiState(
     id = id.toString(),

@@ -1,57 +1,69 @@
 package me.shovon.sms2wallet.presentation.screens.activity
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Surface
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.Row
-import androidx.compose.ui.Alignment
+import me.shovon.sms2wallet.domain.model.AccentColor
+import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.components.EmptyState
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
+import me.shovon.sms2wallet.presentation.components.SectionHeader
+import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
-import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.UnmatchedSmsScreenUiState
 import me.shovon.sms2wallet.presentation.model.UnmatchedSmsUiState
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
-import me.shovon.sms2wallet.domain.model.ThemeMode
-import me.shovon.sms2wallet.domain.model.AccentColor
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
- * "Unmatched SMS" sub-screen, reached from Activity: raw SMS messages no parser could match, so
- * the user can see what's being missed (or confirm it's all noise like OTPs/bill reminders).
+ * "Unmatched SMS" sub-screen: raw SMS messages no parser could match, with affordances
+ * to test in the Parser Playground, copy text, or dismiss.
  */
 @Composable
-fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
+fun UnmatchedSmsContent(
+    state: UnmatchedSmsScreenUiState,
+    onBack: () -> Unit,
+    onDismiss: (String) -> Unit = {},
+    onTestInPlayground: (sender: String, body: String) -> Unit = { _, _ -> }
+) {
     Sms2WalletScaffold(
         title = "Unmatched SMS",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(PhosphorIcons.ArrowBack, contentDescription = "Back")
+                Icon(SolarIcons.ArrowBack, contentDescription = "Back")
             }
         }
     ) { padding ->
-        // Same guard as the review queue: while the first emission is in flight the list is
-        // empty but not *known* to be empty, and flashing an empty state reads as "nothing
-        // here" rather than "still loading".
         if (state.isLoading) {
             Box(
                 modifier = Modifier
@@ -66,7 +78,7 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
 
         if (state.items.isEmpty()) {
             EmptyState(
-                icon = PhosphorIcons.MarkEmailRead,
+                icon = SolarIcons.MarkEmailRead,
                 title = "Nothing unmatched",
                 description = "Every relevant SMS has been recognised by a parser. If you expect a transaction to show up, check that its provider is enabled in Settings.",
                 modifier = Modifier
@@ -87,16 +99,39 @@ fun UnmatchedSmsContent(state: UnmatchedSmsScreenUiState, onBack: () -> Unit) {
                 bottom = Spacing.xxl
             )
         ) {
+            item(key = "header") {
+                SectionHeader(
+                    title = "Unmatched messages (${state.items.size})",
+                    supportingText = "Messages no enabled parser matched. You can test them in Playground or dismiss them.",
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                )
+            }
+
             itemsIndexed(state.items, key = { _, item -> item.id }) { index, item ->
                 if (index > 0) GroupedRowDivider()
-                UnmatchedSmsRow(item = item, index = index, count = state.items.size)
+                UnmatchedSmsRow(
+                    item = item,
+                    index = index,
+                    count = state.items.size,
+                    onDismiss = { onDismiss(item.id) },
+                    onTestInPlayground = { onTestInPlayground(item.sender, item.bodyPreview) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
+private fun UnmatchedSmsRow(
+    item: UnmatchedSmsUiState,
+    index: Int,
+    count: Int,
+    onDismiss: () -> Unit,
+    onTestInPlayground: () -> Unit
+) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = groupedRowShape(index = index, count = count),
@@ -108,23 +143,77 @@ private fun UnmatchedSmsRow(item: UnmatchedSmsUiState, index: Int, count: Int) {
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = item.sender,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = item.sender,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
                 Text(
                     text = item.receivedAtLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
             Text(
                 text = item.bodyPreview,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs)
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = Spacing.sm)
             )
+
+            // Row actions: Test in Playground, Copy, Dismiss
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xs),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    clipboardManager.setText(AnnotatedString(item.bodyPreview))
+                    Toast.makeText(context, "SMS copied to clipboard", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(
+                        imageVector = SolarIcons.Copy,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.sm)
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text("Copy")
+                }
+
+                TextButton(onClick = onTestInPlayground) {
+                    Icon(
+                        imageVector = SolarIcons.Science,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.sm)
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text("Test")
+                }
+
+                TextButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = SolarIcons.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.sm),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
 }

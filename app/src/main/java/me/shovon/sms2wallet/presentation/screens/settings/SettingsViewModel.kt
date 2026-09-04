@@ -15,6 +15,8 @@ import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
 import me.shovon.sms2wallet.data.remote.ApiResult
 import me.shovon.sms2wallet.data.remote.WalletApiClient
+import kotlinx.coroutines.flow.Flow
+import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
@@ -22,6 +24,7 @@ import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.model.AccountMappingRowUiState
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
+import me.shovon.sms2wallet.presentation.model.IntelligenceUiState
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
@@ -43,6 +46,7 @@ class SettingsViewModel @Inject constructor(
     private val walletSyncRepository: WalletSyncRepository,
     private val transactionRepository: TransactionRepository,
     private val walletApiClient: WalletApiClient,
+    private val intelligenceRepository: IntelligenceRepository,
 ) : ViewModel() {
 
     /** Screen-local bits with no home in the data layer: what is typed, and the last test result. */
@@ -51,7 +55,10 @@ class SettingsViewModel @Inject constructor(
     /** Sync progress/error; the counts and timestamp themselves come from Room and DataStore. */
     private val syncState = MutableStateFlow(WalletCatalogueUiState())
 
-    val uiState: StateFlow<SettingsUiState> = combine(
+    /** Typed key and last test result; the stored key itself never enters UI state. */
+    private val intelligenceState = MutableStateFlow(IntelligenceUiState())
+
+    private val baseState: Flow<SettingsUiState> = combine(
         combine(
             settingsRepository.enabledParserNames,
             settingsRepository.autoPushParserNames,
@@ -118,11 +125,94 @@ class SettingsViewModel @Inject constructor(
                 skipIfAlreadyLoggedCount = reminderThreshold,
             ),
         )
+    }
+
+    // Folded in after the fact for the same reason as on the dashboard: `combine` takes five
+    // typed flows, and this section has three sources of its own.
+    val uiState: StateFlow<SettingsUiState> = combine(
+        baseState,
+        intelligenceState,
+        intelligenceRepository.settings,
+        intelligenceRepository.isConfigured,
+        walletSyncRepository.accounts,
+    ) { base, local, settings, hasKey, accounts ->
+        base.copy(
+            intelligence = local.copy(
+                hasStoredKey = hasKey,
+                model = settings.model,
+                shareCategoryNames = settings.shareCategoryNames,
+                shareAccountNames = settings.shareAccountNames,
+                defaultAccountName = accounts.firstOrNull { it.id == settings.defaultAccountId }?.name,
+                availableAccountNames = accounts.map { it.name },
+            )
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
         initialValue = SettingsUiState(),
     )
+
+    // ---- Intelligence ---------------------------------------------------------
+
+    fun onGeminiKeyChange(key: String) {
+        intelligenceState.value = intelligenceState.value.copy(
+            apiKeyInput = key,
+            status = ConnectionStatus.NotTested,
+        )
+    }
+
+    fun onToggleGeminiKeyVisibility() {
+        intelligenceState.value = intelligenceState.value.copy(
+            isKeyVisible = !intelligenceState.value.isKeyVisible
+        )
+    }
+
+    /** Saves the typed key (if any), then checks it and the selected model against Google. */
+    fun testGeminiKey() {
+        viewModelScope.launch {
+            val typed = intelligenceState.value.apiKeyInput.trim()
+            if (typed.isNotEmpty()) intelligenceRepository.saveApiKey(typed)
+
+            intelligenceState.value = intelligenceState.value.copy(isTesting = true)
+            val error = intelligenceRepository.verifyApiKey()
+            intelligenceState.value = intelligenceState.value.copy(
+                isTesting = false,
+                // Clear the field once it is stored, so a working key is never left sitting
+                // in UI state where a screenshot or a state dump could pick it up.
+                apiKeyInput = if (error == null) "" else intelligenceState.value.apiKeyInput,
+                status = if (error == null) ConnectionStatus.Success else ConnectionStatus.Failed(error),
+            )
+        }
+    }
+
+    fun clearGeminiKey() {
+        viewModelScope.launch {
+            intelligenceRepository.clearApiKey()
+            intelligenceState.value = IntelligenceUiState()
+        }
+    }
+
+    fun setGeminiModel(model: String) {
+        viewModelScope.launch { intelligenceRepository.setModel(model) }
+    }
+
+    fun setShareCategoryNames(share: Boolean) {
+        viewModelScope.launch { intelligenceRepository.setShareCategoryNames(share) }
+    }
+
+    fun setShareAccountNames(share: Boolean) {
+        viewModelScope.launch { intelligenceRepository.setShareAccountNames(share) }
+    }
+
+    /** [accountName] is resolved to an id here; null clears the default. */
+    fun setDefaultAccount(accountName: String?) {
+        viewModelScope.launch {
+            val id = accountName?.let { name ->
+                walletSyncRepository.accounts.first().firstOrNull { it.name == name }?.id
+            }
+            intelligenceRepository.setDefaultAccountId(id)
+        }
+    }
 
     /**
      * One row per source the app has actually seen an SMS from, union the sources already

@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +45,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,10 +54,14 @@ import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.components.AppTextField
+import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.components.GroupedRowDivider
+import me.shovon.sms2wallet.presentation.components.ProviderAvatar
 import me.shovon.sms2wallet.presentation.components.SectionHeader
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
+import me.shovon.sms2wallet.presentation.components.StatusBadge
+import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
 import me.shovon.sms2wallet.presentation.model.SampleData
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
@@ -62,7 +70,7 @@ import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.MotionDuration
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.StandardEasing
@@ -84,6 +92,14 @@ fun SettingsContent(
     onSyncWalletData: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onAccentColorChange: (AccentColor) -> Unit,
+    onGeminiKeyChange: (String) -> Unit,
+    onToggleGeminiKeyVisibility: () -> Unit,
+    onTestGeminiKey: () -> Unit,
+    onClearGeminiKey: () -> Unit,
+    onGeminiModelChange: (String) -> Unit,
+    onShareCategoryNamesChange: (Boolean) -> Unit,
+    onShareAccountNamesChange: (Boolean) -> Unit,
+    onDefaultAccountChange: (String) -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
     onAccountMappingChange: (String, String) -> Unit,
@@ -100,7 +116,7 @@ fun SettingsContent(
                 start = Spacing.lg,
                 end = Spacing.lg,
                 top = Spacing.sm,
-                bottom = Spacing.xxl
+                bottom = Spacing.lg
             )
         ) {
             item(key = "appearance-header") {
@@ -113,7 +129,12 @@ fun SettingsContent(
                 AccentColorPicker(
                     selected = state.accentColor,
                     onSelect = onAccentColorChange,
-                    modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.xl)
+                    modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.md)
+                )
+            }
+            item(key = "appearance-preview") {
+                ThemePreviewCard(
+                    modifier = Modifier.padding(bottom = Spacing.xl)
                 )
             }
 
@@ -141,6 +162,27 @@ fun SettingsContent(
                 )
             }
 
+            item(key = "intelligence-header") {
+                SectionHeader(
+                    title = "Intelligence",
+                    supportingText = "Add a transaction by typing it, e.g. \"uber 120\".",
+                    modifier = Modifier.padding(top = Spacing.xl)
+                )
+            }
+            item(key = "intelligence-body") {
+                IntelligenceSection(
+                    state = state.intelligence,
+                    onKeyChange = onGeminiKeyChange,
+                    onToggleKeyVisibility = onToggleGeminiKeyVisibility,
+                    onTestKey = onTestGeminiKey,
+                    onClearKey = onClearGeminiKey,
+                    onModelChange = onGeminiModelChange,
+                    onShareCategoryNamesChange = onShareCategoryNamesChange,
+                    onShareAccountNamesChange = onShareAccountNamesChange,
+                    onDefaultAccountChange = onDefaultAccountChange
+                )
+            }
+
             item(key = "parsers-header") {
                 SectionHeader(
                     title = "Parsers",
@@ -149,7 +191,7 @@ fun SettingsContent(
                     trailing = {
                         TextButton(onClick = onOpenParserPlayground) {
                             Icon(
-                                imageVector = PhosphorIcons.Science,
+                                imageVector = SolarIcons.Science,
                                 contentDescription = null,
                                 modifier = Modifier.size(IconSize.md)
                             )
@@ -233,17 +275,33 @@ private fun ThemeModeSelector(
     val options = ThemeMode.entries
     SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
         options.forEachIndexed { index, mode ->
+            val icon = when (mode) {
+                ThemeMode.SYSTEM -> SolarIcons.DeviceMobile
+                ThemeMode.LIGHT -> SolarIcons.Sun
+                ThemeMode.DARK -> SolarIcons.Moon
+                ThemeMode.AMOLED -> SolarIcons.Sparkle
+            }
             SegmentedButton(
                 selected = mode == selected,
                 onClick = { onSelect(mode) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                 label = {
-                    Text(
-                        text = mode.label(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(IconSize.sm)
+                        )
+                        Text(
+                            text = mode.label(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             )
         }
@@ -349,7 +407,7 @@ private fun AccentSwatch(accent: AccentColor, isSelected: Boolean, onClick: () -
             // wallpaper yields - so it is marked rather than merely coloured.
             if (accent == AccentColor.DYNAMIC) {
                 Icon(
-                    imageVector = PhosphorIcons.Science,
+                    imageVector = SolarIcons.Science,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier
@@ -380,6 +438,100 @@ private fun ThemeMode.label(): String = when (this) {
     ThemeMode.LIGHT -> "Light"
     ThemeMode.DARK -> "Dark"
     ThemeMode.AMOLED -> "AMOLED"
+}
+
+/**
+ * Interactive preview of the selected theme palette and components.
+ */
+@Composable
+private fun ThemePreviewCard(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = groupedSurfaceColor()
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Live Theme Preview",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "Active Palette",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = Spacing.xs, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Mini Transaction Preview
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    ProviderAvatar(providerName = "bKash", size = 36.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "SHWAPNO SUPERSTORE",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            StatusBadge(text = "Groceries", intent = BadgeIntent.NEUTRAL)
+                            StatusBadge(text = "bKash Personal", intent = BadgeIntent.INFO)
+                        }
+                    }
+                    Text(
+                        text = "-৳1,250.00",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Sms2WalletTheme.extendedColors.expense
+                    )
+                }
+            }
+
+            // Mini Component Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = {},
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Tonal Action")
+                }
+                StatusBadge(text = "Verified", intent = BadgeIntent.INFO)
+                StatusBadge(text = "Review", intent = BadgeIntent.WARNING)
+            }
+        }
+    }
 }
 
 /**
@@ -442,7 +594,7 @@ private fun WalletCatalogueRow(
             } else {
                 TextButton(onClick = onSync, enabled = enabled) {
                     Icon(
-                        imageVector = PhosphorIcons.Refresh,
+                        imageVector = SolarIcons.Refresh,
                         contentDescription = null,
                         modifier = Modifier.size(IconSize.md)
                     )
@@ -500,9 +652,9 @@ private fun WalletConnectionSection(
                     IconButton(onClick = onToggleVisibility) {
                         Icon(
                             imageVector = if (state.isTokenVisible) {
-                                PhosphorIcons.VisibilityOff
+                                SolarIcons.VisibilityOff
                             } else {
-                                PhosphorIcons.Visibility
+                                SolarIcons.Visibility
                             },
                             contentDescription = if (state.isTokenVisible) "Hide token" else "Show token"
                         )
@@ -537,14 +689,14 @@ private fun WalletConnectionSection(
 private fun ConnectionStatusRow(status: ConnectionStatus) {
     val extended = Sms2WalletTheme.extendedColors
     val (icon, label, color) = when (status) {
-        is ConnectionStatus.NotTested -> Triple(PhosphorIcons.Error, "Not tested yet", MaterialTheme.colorScheme.onSurfaceVariant)
-        is ConnectionStatus.Success -> Triple(PhosphorIcons.CheckCircle, "Connected", extended.income)
+        is ConnectionStatus.NotTested -> Triple(SolarIcons.Error, "Not tested yet", MaterialTheme.colorScheme.onSurfaceVariant)
+        is ConnectionStatus.Success -> Triple(SolarIcons.CheckCircle, "Connected", extended.income)
         is ConnectionStatus.Syncing -> Triple(
-            PhosphorIcons.Sync,
+            SolarIcons.Sync,
             "Wallet is still syncing - retry in ${status.retryInMinutes} minute${if (status.retryInMinutes == 1) "" else "s"}",
             MaterialTheme.colorScheme.tertiary
         )
-        is ConnectionStatus.Failed -> Triple(PhosphorIcons.Error, status.message, MaterialTheme.colorScheme.error)
+        is ConnectionStatus.Failed -> Triple(SolarIcons.Error, status.message, MaterialTheme.colorScheme.error)
     }
     Row(
         modifier = Modifier.padding(top = Spacing.md),
@@ -569,6 +721,14 @@ private fun SettingsScreenLightPreview() {
             onSyncWalletData = {},
             onThemeModeChange = {},
             onAccentColorChange = {},
+            onGeminiKeyChange = {},
+            onToggleGeminiKeyVisibility = {},
+            onTestGeminiKey = {},
+            onClearGeminiKey = {},
+            onGeminiModelChange = {},
+            onShareCategoryNamesChange = {},
+            onShareAccountNamesChange = {},
+            onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },
@@ -592,6 +752,14 @@ private fun SettingsScreenDarkPreview() {
             onSyncWalletData = {},
             onThemeModeChange = {},
             onAccentColorChange = {},
+            onGeminiKeyChange = {},
+            onToggleGeminiKeyVisibility = {},
+            onTestGeminiKey = {},
+            onClearGeminiKey = {},
+            onGeminiModelChange = {},
+            onShareCategoryNamesChange = {},
+            onShareAccountNamesChange = {},
+            onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
             onAccountMappingChange = { _, _ -> },

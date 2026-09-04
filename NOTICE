@@ -12,9 +12,10 @@ GNU Affero General Public License version 3. See LICENSE for the full text.
 "Wallet" and "BudgetBakers" are trademarks of BudgetBakers s.r.o. This project
 is an independent, unaffiliated client of their public REST API.
 
-Phosphor Icons
---------------
-The duotone icons in app/src/main/java/me/shovon/sms2wallet/presentation/theme/PhosphorIcons.kt
-are vendored from Phosphor Icons (https://github.com/phosphor-icons/core), Copyright (c) 2023
-Phosphor Icons, licensed under the MIT License. The SVG path data is unmodified; only the
-surrounding Kotlin/Compose wrapper is this project's own.
+Solar Icons
+-----------
+The icons in app/src/main/java/me/shovon/sms2wallet/presentation/theme/SolarIcons.kt
+are derived from Solar Icon Set (https://solar-icons.com / https://github.com/480-Design/Solar-Icon-Set),
+Copyright (c) 480 Design (Alexander Burkatov), licensed under the Creative Commons
+Attribution 4.0 International License (CC BY 4.0). The SVG path data is adapted from
+the Bold Duotone icon set; the Kotlin/Compose wrapper is this project's own.

@@ -22,6 +22,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +51,7 @@ import me.shovon.sms2wallet.presentation.theme.MotionDuration
 import me.shovon.sms2wallet.presentation.theme.StandardEasing
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.domain.model.AccentColor
 
@@ -82,21 +84,21 @@ fun ReviewQueueContent(
         navigationIcon = {
             if (state.isMultiSelectMode) {
                 IconButton(onClick = onToggleMultiSelect) {
-                    Icon(PhosphorIcons.ArrowBack, contentDescription = "Exit selection")
+                    Icon(SolarIcons.ArrowBack, contentDescription = "Exit selection")
                 }
             }
         },
         actions = {
             if (state.isMultiSelectMode) {
                 IconButton(onClick = onBulkDismiss, enabled = state.selectedIds.isNotEmpty()) {
-                    Icon(PhosphorIcons.DeleteSweep, contentDescription = "Dismiss selected")
+                    Icon(SolarIcons.DeleteSweep, contentDescription = "Dismiss selected")
                 }
                 IconButton(onClick = onBulkPush, enabled = state.selectedIds.isNotEmpty()) {
-                    Icon(PhosphorIcons.PublishedWithChanges, contentDescription = "Push selected")
+                    Icon(SolarIcons.PublishedWithChanges, contentDescription = "Push selected")
                 }
             } else if (!state.isEmpty) {
                 IconButton(onClick = onToggleMultiSelect) {
-                    Icon(PhosphorIcons.Checklist, contentDescription = "Select multiple")
+                    Icon(SolarIcons.Checklist, contentDescription = "Select multiple")
                 }
                 QueueOverflowMenu(onDismissAllClick = { confirmDismissAll = true })
             }
@@ -119,14 +121,23 @@ fun ReviewQueueContent(
 
         if (state.isEmpty) {
             EmptyState(
-                icon = PhosphorIcons.Inbox,
-                title = "Nothing to review",
+                icon = SolarIcons.CheckCircle,
+                title = "All caught up",
                 description = "New transactions parsed from your SMS show up here so you can check them before they reach Wallet.",
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             )
             return@Sms2WalletScaffold
+        }
+
+        var filterAttentionOnly by remember { mutableStateOf(false) }
+        val visibleGroups = remember(state.groups, filterAttentionOnly) {
+            if (!filterAttentionOnly) state.groups
+            else state.groups.mapNotNull { group ->
+                val filtered = group.transactions.filter { it.needsAttention }
+                if (filtered.isEmpty()) null else group.copy(transactions = filtered)
+            }
         }
 
         LazyColumn(
@@ -137,21 +148,21 @@ fun ReviewQueueContent(
                 start = Spacing.lg,
                 end = Spacing.lg,
                 top = Spacing.sm,
-                bottom = Spacing.xxl
+                bottom = Spacing.lg
             )
-            // No blanket vertical arrangement: rows inside a day group must sit flush against
-            // each other for the group to read as one container. Spacing is applied per item.
         ) {
             item(key = "summary") {
                 QueueSummary(
                     total = state.totalCount,
                     attentionCount = state.attentionCount,
                     showSwipeHint = state.showSwipeHint,
+                    filterAttentionOnly = filterAttentionOnly,
+                    onToggleFilterAttention = { filterAttentionOnly = !filterAttentionOnly },
                     modifier = Modifier.padding(bottom = Spacing.sm)
                 )
             }
 
-            state.groups.forEach { group ->
+            visibleGroups.forEach { group ->
                 item(key = "header-${group.dayLabel}") {
                     SectionHeader(
                         title = group.dayLabel,
@@ -165,8 +176,6 @@ fun ReviewQueueContent(
                     if (index > 0) GroupedRowDivider()
                     TransactionCard(
                         transaction = transaction,
-                        // Neighbours close the gap instead of snapping, which is what makes a
-                        // push or dismiss read as an outcome rather than a glitch.
                         modifier = Modifier.animateItem(
                             placementSpec = tween(
                                 durationMillis = MotionDuration.EMPHASISED_MILLIS,
@@ -219,14 +228,14 @@ private fun QueueOverflowMenu(onDismissAllClick: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
 
     IconButton(onClick = { menuOpen = true }) {
-        Icon(PhosphorIcons.MoreVert, contentDescription = "More actions")
+        Icon(SolarIcons.MoreVert, contentDescription = "More actions")
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
         DropdownMenuItem(
             text = { Text("Dismiss all", color = MaterialTheme.colorScheme.error) },
             leadingIcon = {
                 Icon(
-                    imageVector = PhosphorIcons.DeleteSweep,
+                    imageVector = SolarIcons.DeleteSweep,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(IconSize.lg)
@@ -248,7 +257,7 @@ private fun DismissAllDialog(count: Int, onConfirm: () -> Unit, onCancel: () -> 
         onDismissRequest = onCancel,
         icon = {
             Icon(
-                imageVector = PhosphorIcons.WarningAmber,
+                imageVector = SolarIcons.WarningAmber,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error
             )
@@ -285,6 +294,8 @@ private fun QueueSummary(
     total: Int,
     attentionCount: Int,
     showSwipeHint: Boolean,
+    filterAttentionOnly: Boolean,
+    onToggleFilterAttention: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -315,32 +326,55 @@ private fun QueueSummary(
             exit = fadeOut(tween(MotionDuration.QUICK_MILLIS)) +
                 shrinkVertically(tween(MotionDuration.QUICK_MILLIS))
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.md),
-                shape = MaterialTheme.shapes.medium,
-                color = Sms2WalletTheme.extendedColors.warningContainer
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            Column(modifier = Modifier.padding(top = Spacing.md)) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = Sms2WalletTheme.extendedColors.warningContainer
                 ) {
-                    Icon(
-                        imageVector = PhosphorIcons.WarningAmber,
-                        contentDescription = null,
-                        tint = Sms2WalletTheme.extendedColors.onWarningContainer,
-                        modifier = Modifier.size(IconSize.md)
+                    Row(
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        Icon(
+                            imageVector = SolarIcons.WarningAmber,
+                            contentDescription = null,
+                            tint = Sms2WalletTheme.extendedColors.onWarningContainer,
+                            modifier = Modifier.size(IconSize.md)
+                        )
+                        Text(
+                            text = if (attentionCount == 1) {
+                                "1 transaction needs a closer look before pushing"
+                            } else {
+                                "$attentionCount transactions need a closer look before pushing"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Sms2WalletTheme.extendedColors.onWarningContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    FilterChip(
+                        selected = !filterAttentionOnly,
+                        onClick = { if (filterAttentionOnly) onToggleFilterAttention() },
+                        label = { Text("All ($total)") }
                     )
-                    Text(
-                        text = if (attentionCount == 1) {
-                            "1 transaction needs a closer look before pushing"
-                        } else {
-                            "$attentionCount transactions need a closer look before pushing"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Sms2WalletTheme.extendedColors.onWarningContainer
+                    FilterChip(
+                        selected = filterAttentionOnly,
+                        onClick = { if (!filterAttentionOnly) onToggleFilterAttention() },
+                        label = { Text("Needs attention ($attentionCount)") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Sms2WalletTheme.extendedColors.warningContainer,
+                            selectedLabelColor = Sms2WalletTheme.extendedColors.onWarningContainer
+                        )
                     )
                 }
             }

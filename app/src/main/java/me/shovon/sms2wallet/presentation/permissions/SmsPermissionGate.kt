@@ -6,14 +6,19 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,22 +32,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import me.shovon.sms2wallet.presentation.theme.IconSize
-import me.shovon.sms2wallet.presentation.theme.Spacing
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
+import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
+import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
- * Gates the app on the SMS permissions it cannot work without, and kicks off the initial inbox
- * backfill the moment they are granted.
- *
- * Re-checks on every resume rather than only at first composition, so a permission granted (or
- * revoked) in system Settings while the app was backgrounded is picked up on return.
+ * Gates the app on SMS permissions with privacy reassurance cards, and kicks off
+ * the initial inbox scan the moment permissions are granted.
  */
 @Composable
 fun SmsPermissionGate(
@@ -54,8 +61,6 @@ fun SmsPermissionGate(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasPermission by remember { mutableStateOf(SmsPermissions.hasRequired(context)) }
-    // Distinguishes "not asked yet" from "asked and refused": only the latter should send the
-    // user to system Settings, since a first-time refusal can still be retried in-app.
     var hasAsked by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -71,8 +76,6 @@ fun SmsPermissionGate(
         }
     }
 
-    // The backfill runs once per grant, not once per composition: keyed on the granted state so
-    // recomposition cannot re-trigger a full inbox scan.
     LaunchedEffect(hasPermission) {
         if (hasPermission) viewModel.scanInbox()
     }
@@ -86,69 +89,141 @@ fun SmsPermissionGate(
     val permanentlyDenied = hasAsked && activity != null &&
         SmsPermissions.REQUIRED.none { activity.shouldShowRequestPermissionRationale(it) }
 
-    // A Surface, not a bare Column: outside one, Material's LocalContentColor falls back to
-    // black, so any Text that does not name its own colour rendered black-on-black in dark mode.
-    // The Surface also paints the background explicitly instead of relying on the Activity's
-    // window background to happen to match the Compose theme.
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-            .padding(Spacing.xxl),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            imageVector = PhosphorIcons.Sms,
-            contentDescription = null,
-            modifier = Modifier.size(IconSize.xl),
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = "SMS2Wallet needs to read your SMS",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = "Transaction messages are parsed on your device. Only the resulting " +
-                "transaction is ever sent to Wallet - never the message itself.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-
-        if (permanentlyDenied) {
-            Text(
-                text = "Android won't show the prompt again. Enable SMS access in system settings.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center,
-            )
-            Button(
-                onClick = { context.startActivity(appSettingsIntent(context.packageName)) },
-                modifier = Modifier.fillMaxWidth(),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .padding(horizontal = Spacing.xxl, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                Text("Open settings")
+                Icon(
+                    imageVector = SolarIcons.ShieldCheck,
+                    contentDescription = null,
+                    modifier = Modifier.size(IconSize.xl),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
-        } else {
-            Button(
-                onClick = { launcher.launch(SmsPermissions.missing(context)) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Grant SMS access")
-            }
-        }
 
-        TextButton(onClick = { hasPermission = SmsPermissions.hasRequired(context) }) {
-            Text("I've granted it - check again")
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                Text(
+                    text = "SMS Access Required",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "SMS2Wallet parses bank & mobile wallet SMS into transactions automatically.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            // Privacy Assurance Card
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    PrivacyBullet(
+                        icon = SolarIcons.CheckCircle,
+                        title = "100% On-Device Parsing",
+                        description = "Your SMS messages are processed locally and never uploaded to any server."
+                    )
+                    PrivacyBullet(
+                        icon = SolarIcons.CheckCircle,
+                        title = "You Review Everything",
+                        description = "Transactions sit in your review queue until you confirm and push them."
+                    )
+                    PrivacyBullet(
+                        icon = SolarIcons.CheckCircle,
+                        title = "Supported Bangladeshi Banks",
+                        description = "bKash, Nagad, Rocket, Upay, Tap, City Bank, BRAC, EBL, MTB."
+                    )
+                }
+            }
+
+            if (permanentlyDenied) {
+                Text(
+                    text = "Android won't show the permission prompt again. Please enable SMS access in system settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Button(
+                    onClick = { context.startActivity(appSettingsIntent(context.packageName)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Open System Settings")
+                }
+            } else {
+                Button(
+                    onClick = { launcher.launch(SmsPermissions.missing(context)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Grant SMS Access")
+                }
+            }
+
+            TextButton(onClick = { hasPermission = SmsPermissions.hasRequired(context) }) {
+                Text("I've granted it — check again")
+            }
         }
     }
 }
+
+@Composable
+private fun PrivacyBullet(
+    icon: ImageVector,
+    title: String,
+    description: String
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Sms2WalletTheme.extendedColors.income,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(IconSize.md)
+        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 private fun appSettingsIntent(packageName: String): Intent =

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -21,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 
 /**
  * Field chrome shared by every input in the app: a persistent label *above* the control, the
@@ -95,7 +96,7 @@ private fun SupportingLine(supportingText: String?, errorText: String?, enabled:
         if (message == null) return@Row
         if (errorText != null) {
             Icon(
-                imageVector = PhosphorIcons.ErrorOutline,
+                imageVector = SolarIcons.ErrorOutline,
                 // The message beside it already states the problem; announcing the glyph too
                 // would just make a screen reader say it twice.
                 contentDescription = null,
@@ -132,6 +133,8 @@ fun AppTextField(
     enabled: Boolean = true,
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    /** Handlers for [keyboardOptions]'s IME action - declaring an action without one is a no-op. */
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
     prefix: String? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
@@ -157,6 +160,7 @@ fun AppTextField(
             trailingIcon = trailingIcon,
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
             shape = MaterialTheme.shapes.medium,
             prefix = prefix?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
             placeholder = placeholder?.let {
@@ -200,7 +204,7 @@ fun FormErrorSummary(message: String, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = PhosphorIcons.ErrorOutline,
+                imageVector = SolarIcons.ErrorOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(IconSize.md)

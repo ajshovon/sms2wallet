@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,16 +27,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import me.shovon.sms2wallet.presentation.components.FormErrorSummary
+import me.shovon.sms2wallet.presentation.components.ProviderAvatar
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.components.TransactionEditForm
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 
 /**
  * The final review step for one parsed transaction before it is queued for Wallet.
@@ -59,7 +68,7 @@ fun TransactionDetailScreen(
         title = "Review transaction",
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(PhosphorIcons.ArrowBack, contentDescription = "Back")
+                Icon(SolarIcons.ArrowBack, contentDescription = "Back")
             }
         },
         bottomBar = {
@@ -118,25 +127,41 @@ fun TransactionDetailScreen(
 
 /**
  * Names the transaction being reviewed and shows the SMS it was parsed from.
- *
- * Typographic rather than boxed: this is the screen's subject, so it sits directly on the
- * background at the highest type size and lets the grouped fields below read as its detail.
  */
 @Composable
 private fun ProvenanceHeader(state: TransactionDetailUiState) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = state.merchant.ifBlank { state.providerName ?: "Transaction" },
-            style = MaterialTheme.typography.headlineSmall
-        )
-        state.sourceSummary?.let { summary ->
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProviderAvatar(
+                providerName = state.providerName,
+                direction = state.direction,
+                size = 48.dp
             )
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = state.merchant.ifBlank { state.providerName ?: "Transaction" },
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                state.sourceSummary?.let { summary ->
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Spacing.xxs)
+                    )
+                }
+            }
         }
+
         state.smsPreview?.let { sms ->
             Surface(
                 modifier = Modifier
@@ -145,19 +170,47 @@ private fun ProvenanceHeader(state: TransactionDetailUiState) {
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = SMS_QUOTE_ALPHA)
             ) {
-                Row(modifier = Modifier.padding(Spacing.md)) {
-                    // A thin rule marks this as quoted source text rather than app copy.
-                    Surface(
-                        modifier = Modifier.size(width = SMS_QUOTE_RULE_WIDTH, height = SMS_QUOTE_RULE_HEIGHT),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {}
-                    Text(
-                        text = sms,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = Spacing.md)
-                    )
+                Column(modifier = Modifier.padding(Spacing.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Original SMS message",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(onClick = {
+                            clipboardManager.setText(AnnotatedString(sms))
+                            Toast.makeText(context, "SMS text copied", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                imageVector = SolarIcons.Copy,
+                                contentDescription = null,
+                                modifier = Modifier.size(IconSize.sm)
+                            )
+                            Text(
+                                " Copy",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+
+                    Row(modifier = Modifier.padding(top = Spacing.xs)) {
+                        Surface(
+                            modifier = Modifier.size(width = SMS_QUOTE_RULE_WIDTH, height = SMS_QUOTE_RULE_HEIGHT),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {}
+                        Text(
+                            text = sms,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = Spacing.md)
+                        )
+                    }
                 }
             }
         }
@@ -184,7 +237,7 @@ private fun AttentionBanner(state: TransactionDetailUiState) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Icon(
-                imageVector = PhosphorIcons.WarningAmber,
+                imageVector = SolarIcons.WarningAmber,
                 contentDescription = null,
                 tint = extended.onWarningContainer,
                 modifier = Modifier.size(IconSize.md)
@@ -212,8 +265,13 @@ private fun AttentionBanner(state: TransactionDetailUiState) {
  */
 @Composable
 private fun ReviewActionBar(isSaving: Boolean, onPush: () -> Unit, onDismiss: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Column {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+        ) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 modifier = Modifier

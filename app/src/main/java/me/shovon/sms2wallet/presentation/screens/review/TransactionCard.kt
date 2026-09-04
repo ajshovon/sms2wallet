@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,13 +30,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.MoneyText
+import me.shovon.sms2wallet.presentation.components.ProviderAvatar
 import me.shovon.sms2wallet.presentation.components.StatusBadge
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
@@ -43,7 +50,7 @@ import me.shovon.sms2wallet.presentation.model.ReviewTransactionUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 
 /**
  * One Review-queue row, rendered as part of a grouped day list rather than as its own card.
@@ -128,7 +135,20 @@ fun TransactionCard(
 
     SwipeToDismissBox(
         state = dismissState,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Push to Wallet") {
+                        onPush()
+                        true
+                    },
+                    CustomAccessibilityAction("Dismiss transaction") {
+                        onDismiss()
+                        true
+                    }
+                )
+            },
         backgroundContent = { SwipeBackground(dismissState.dismissDirection, shape) }
     ) {
         TransactionRowContent(
@@ -150,14 +170,14 @@ private fun SwipeBackground(
         SwipeToDismissBoxValue.StartToEnd -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            icon = PhosphorIcons.CheckCircle,
+            icon = SolarIcons.CheckCircle,
             alignment = Alignment.CenterStart,
             label = "Push"
         )
         SwipeToDismissBoxValue.EndToStart -> SwipeBackgroundSpec(
             color = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            icon = PhosphorIcons.Cancel,
+            icon = SolarIcons.Cancel,
             alignment = Alignment.CenterEnd,
             label = "Dismiss"
         )
@@ -172,7 +192,8 @@ private fun SwipeBackground(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(spec.color, shape = shape),
+            .clip(shape)
+            .background(spec.color),
         contentAlignment = spec.alignment
     ) {
         Row(
@@ -180,18 +201,27 @@ private fun SwipeBackground(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            spec.icon?.let {
-                Icon(
-                    imageVector = it,
-                    contentDescription = null,
-                    tint = spec.contentColor,
-                    modifier = Modifier.size(IconSize.md)
-                )
+            spec.icon?.let { icon ->
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(spec.contentColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = spec.contentColor,
+                        modifier = Modifier.size(IconSize.md)
+                    )
+                }
             }
             if (spec.label.isNotEmpty()) {
                 Text(
                     text = spec.label,
                     style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
                     color = spec.contentColor
                 )
             }
@@ -230,12 +260,21 @@ private fun TransactionRowContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            leading?.invoke()
+            if (leading != null) {
+                leading()
+            } else {
+                ProviderAvatar(
+                    providerName = transaction.providerName,
+                    direction = transaction.direction,
+                    size = 42.dp
+                )
+            }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = transaction.merchant,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -247,26 +286,51 @@ private fun TransactionRowContent(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = Spacing.xxs)
                 )
-                if (transaction.needsAttention) {
+
+                // Metadata tags: Category, Account destination, or Warnings
+                val hasTags = transaction.category != null || transaction.accountName != null || transaction.needsAttention
+                if (hasTags) {
                     Row(
-                        modifier = Modifier.padding(top = Spacing.sm),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        modifier = Modifier.padding(top = Spacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        transaction.category?.let { cat ->
+                            StatusBadge(text = cat, intent = BadgeIntent.NEUTRAL)
+                        }
+
+                        if (transaction.accountName != null) {
+                            StatusBadge(text = transaction.accountName, intent = BadgeIntent.INFO)
+                        } else {
+                            StatusBadge(text = "Unmapped", intent = BadgeIntent.WARNING)
+                        }
+
                         if (transaction.isSuspectedDuplicate) {
-                            StatusBadge(text = "Possible duplicate", intent = BadgeIntent.WARNING)
+                            StatusBadge(text = "Duplicate?", intent = BadgeIntent.WARNING)
                         }
                         if (transaction.needsVerification) {
-                            StatusBadge(text = "Needs verification", intent = BadgeIntent.INFO)
+                            StatusBadge(text = "Verify", intent = BadgeIntent.INFO)
                         }
                     }
                 }
             }
 
-            MoneyText(
-                amount = transaction.amount,
-                direction = transaction.direction,
-                style = MaterialTheme.typography.titleMedium
-            )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxs)
+            ) {
+                MoneyText(
+                    amount = transaction.amount,
+                    direction = transaction.direction,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Icon(
+                    imageVector = SolarIcons.CaretRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(IconSize.sm)
+                )
+            }
         }
     }
 }

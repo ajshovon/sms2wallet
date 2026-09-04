@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.theme.IconSize
 import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 
 /**
  * A single-select field that opens a full-width [SelectionSheet] instead of an anchored
@@ -151,7 +151,7 @@ fun PickerControl(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         Text(
-            text = if (hasValue) value!! else placeholder,
+            text = if (!value.isNullOrBlank()) value else placeholder,
             style = MaterialTheme.typography.bodyLarge,
             color = contentColor,
             maxLines = 1,
@@ -159,7 +159,7 @@ fun PickerControl(
             modifier = Modifier.weight(1f)
         )
         Icon(
-            imageVector = PhosphorIcons.KeyboardArrowDown,
+            imageVector = SolarIcons.KeyboardArrowDown,
             contentDescription = null,
             tint = if (enabled) {
                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -234,14 +234,14 @@ fun SelectionSheet(
 
             when {
                 options.isEmpty() -> SheetMessage(
-                    icon = PhosphorIcons.SearchOff,
+                    icon = SolarIcons.SearchOff,
                     title = "Nothing to choose from",
                     body = "Open Settings and tap Sync under \"Accounts and categories\" to pull " +
                         "these from Wallet."
                 )
 
                 results.isEmpty() -> SheetMessage(
-                    icon = PhosphorIcons.SearchOff,
+                    icon = SolarIcons.SearchOff,
                     title = "No matches for \"${query.trim()}\"",
                     body = "Try a shorter or differently spelled search.",
                     actionLabel = "Clear search",
@@ -297,7 +297,7 @@ private fun SelectionRow(label: String, isSelected: Boolean, onClick: () -> Unit
         )
         if (isSelected) {
             Icon(
-                imageVector = PhosphorIcons.Check,
+                imageVector = SolarIcons.Check,
                 contentDescription = "Selected",
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(IconSize.md)
@@ -323,7 +323,7 @@ private fun SearchField(
         placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         leadingIcon = {
             Icon(
-                imageVector = PhosphorIcons.Search,
+                imageVector = SolarIcons.Search,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(IconSize.lg)
@@ -333,7 +333,7 @@ private fun SearchField(
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
-                        imageVector = PhosphorIcons.Close,
+                        imageVector = SolarIcons.Close,
                         contentDescription = "Clear search",
                         modifier = Modifier.size(IconSize.md)
                     )

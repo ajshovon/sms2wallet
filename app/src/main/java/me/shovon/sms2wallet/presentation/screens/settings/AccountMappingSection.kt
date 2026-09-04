@@ -14,11 +14,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import me.shovon.sms2wallet.presentation.components.BadgeIntent
 import me.shovon.sms2wallet.presentation.components.PickerControl
+import me.shovon.sms2wallet.presentation.components.ProviderAvatar
 import me.shovon.sms2wallet.presentation.components.StatusBadge
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
 import me.shovon.sms2wallet.presentation.model.AccountMappingRowUiState
 import me.shovon.sms2wallet.presentation.theme.Spacing
+import androidx.compose.ui.unit.dp
 
 /**
  * One detected-source row in "Account mapping": which Wallet account transactions from this
@@ -49,8 +51,9 @@ fun AccountMappingRow(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
+                ProviderAvatar(providerName = mapping.sourceLabel, size = 36.dp)
                 Text(
                     text = mapping.sourceLabel,
                     style = MaterialTheme.typography.titleMedium,

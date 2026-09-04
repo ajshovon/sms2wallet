@@ -13,13 +13,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import me.shovon.sms2wallet.data.notification.TransactionNotifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.ThemeViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val pendingReviewId = mutableStateOf<Long?>(null)
 
     /**
      * The activity is `singleTop`-ish via CLEAR_TOP, so a notification tapped while the app is
@@ -28,16 +30,22 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        readReviewExtra(intent)?.let { pendingReviewId.value = it }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingReviewId.value?.let { outState.putLong(KEY_PENDING_REVIEW_ID, it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val savedId = savedInstanceState?.getLong(KEY_PENDING_REVIEW_ID, -1L)?.takeIf { it > 0 }
+        pendingReviewId.value = savedId ?: readReviewExtra(intent)
+
         enableEdgeToEdge()
         setContent {
-            // Transaction id carried by a "review this" notification, if the activity was opened
-            // from one. Held in state and consumed once, so a configuration change does not
-            // re-navigate to the same transaction after the user has backed out of it.
-            var pendingReviewId by rememberSaveable { mutableStateOf(readReviewExtra(intent)) }
+            val currentPendingReviewId by pendingReviewId
 
             val themeViewModel: ThemeViewModel = hiltViewModel()
             val appearance by themeViewModel.appearance.collectAsStateWithLifecycle()
@@ -54,12 +62,16 @@ class MainActivity : ComponentActivity() {
                 // gate is what triggers the initial inbox backfill once it is granted.
                 SmsPermissionGate {
                     Sms2WalletRootScreen(
-                        openTransactionId = pendingReviewId,
-                        onTransactionOpened = { pendingReviewId = null },
+                        openTransactionId = currentPendingReviewId,
+                        onTransactionOpened = { pendingReviewId.value = null },
                     )
                 }
             }
         }
+    }
+
+    private companion object {
+        const val KEY_PENDING_REVIEW_ID = "pending_review_transaction_id"
     }
 
     /** Reads the transaction id a review notification was built with, or null. */

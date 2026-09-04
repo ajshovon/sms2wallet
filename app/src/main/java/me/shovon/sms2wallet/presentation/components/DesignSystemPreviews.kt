@@ -17,7 +17,7 @@ import java.math.BigDecimal
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
-import me.shovon.sms2wallet.presentation.theme.PhosphorIcons
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.domain.model.AccentColor
 
@@ -184,7 +184,7 @@ private fun ComponentGalleryLargeFontPreview() {
 private fun EmptyStatePreview() {
     Sms2WalletTheme(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.BRAND) {
         EmptyState(
-            icon = PhosphorIcons.Inbox,
+            icon = SolarIcons.Inbox,
             title = "Nothing to review",
             description = "New transactions parsed from your SMS show up here so you can check them before they reach Wallet.",
             modifier = Modifier.padding(0.dp)

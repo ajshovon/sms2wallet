@@ -1,7 +1,10 @@
 package me.shovon.sms2wallet.presentation.components
 
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -10,6 +13,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 
 /**
  * Standard screen chrome for every top-level and detail screen: an edge-to-edge [Scaffold]
@@ -30,9 +34,16 @@ fun Sms2WalletScaffold(
 ) {
     Scaffold(
         modifier = modifier,
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 navigationIcon = navigationIcon,
                 actions = actions,
                 colors = TopAppBarDefaults.topAppBarColors()

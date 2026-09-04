@@ -15,6 +15,9 @@ pluginManagement {
     // version already on this build's classpath. Pinning one here would turn that
     // into a versioned request and fail with "already on the classpath".
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)

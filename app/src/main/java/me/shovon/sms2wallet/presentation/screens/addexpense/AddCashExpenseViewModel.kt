@@ -1,5 +1,6 @@
 package me.shovon.sms2wallet.presentation.screens.addexpense
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,14 +11,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
+import me.shovon.sms2wallet.presentation.navigation.Sms2WalletDestination
 
 /**
- * Manual cash-entry sheet: spending that never produced an SMS.
+ * Manual cash-entry sheet: spending that never produced an SMS, and the landing screen for a
+ * transaction parsed from a typed phrase.
  *
  * Account and category options come from the cached Wallet catalogue, so an empty picker means
  * "connect a token and sync" rather than "there are none".
@@ -27,22 +31,59 @@ class AddCashExpenseViewModel @Inject constructor(
     private val walletSyncRepository: WalletSyncRepository,
     private val transactionRepository: TransactionRepository,
     private val pushScheduler: PushScheduler,
+    private val appPreferences: AppPreferences,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TransactionDetailUiState())
+    /**
+     * Values a natural-language parse put in the route, if this screen was opened that way.
+     *
+     * Read from [SavedStateHandle] rather than passed in, so the prefill is restored after
+     * process death exactly as the navigation arguments are.
+     */
+    private val prefillMerchant: String = savedStateHandle.arg(Sms2WalletDestination.ARG_MERCHANT)
+    private val prefillAmount: String = savedStateHandle.arg(Sms2WalletDestination.ARG_AMOUNT)
+    private val prefillCategory: String = savedStateHandle.arg(Sms2WalletDestination.ARG_CATEGORY)
+    private val prefillAccount: String = savedStateHandle.arg(Sms2WalletDestination.ARG_ACCOUNT)
+    private val prefillNote: String = savedStateHandle.arg(Sms2WalletDestination.ARG_NOTE)
+    private val prefillIsIncome: Boolean =
+        savedStateHandle.arg(Sms2WalletDestination.ARG_INCOME).toBoolean()
+
+    private val _uiState = MutableStateFlow(
+        TransactionDetailUiState(
+            merchant = prefillMerchant,
+            amountText = prefillAmount,
+            category = prefillCategory,
+            note = prefillNote,
+            direction = if (prefillIsIncome) TransactionDirection.INCOME else TransactionDirection.EXPENSE,
+        )
+    )
     val uiState: StateFlow<TransactionDetailUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
             val accounts = walletSyncRepository.accounts.first()
             val categories = walletSyncRepository.categories.first()
+            val defaultAccountId = appPreferences.defaultAccountId.first()
+
+            // Precedence: what the phrase named, then the configured default wallet, then
+            // whatever is first. The default exists precisely so that a user who does not share
+            // account names with the model still lands on the right account.
+            val accountName = prefillAccount.takeIf { name ->
+                accounts.any { it.name == name }
+            }
+                ?: accounts.firstOrNull { it.id == defaultAccountId }?.name
+                ?: accounts.firstOrNull()?.name.orEmpty()
+
             _uiState.value = _uiState.value.copy(
                 availableAccounts = accounts.map { it.name },
                 availableCategories = categories.map { it.name },
-                accountName = accounts.firstOrNull()?.name.orEmpty(),
+                accountName = accountName,
             )
         }
     }
+
+    private fun SavedStateHandle.arg(key: String): String = get<String>(key).orEmpty()
 
     fun onMerchantChange(value: String) { _uiState.value = _uiState.value.copy(merchant = value) }
     fun onAmountChange(value: String) {

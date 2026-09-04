@@ -36,7 +36,9 @@ object SampleData {
                         direction = TransactionDirection.EXPENSE,
                         providerName = "bKash",
                         accountLast4 = "0000",
-                        timeLabel = "10:24 AM"
+                        timeLabel = "10:24 AM",
+                        category = "Shopping",
+                        accountName = "bKash Personal"
                     ),
                     ReviewTransactionUiState(
                         id = "txn-2",
@@ -46,6 +48,8 @@ object SampleData {
                         providerName = "City Bank",
                         accountLast4 = "1234",
                         timeLabel = "9:02 AM",
+                        category = "Groceries",
+                        accountName = "City Amex",
                         isSuspectedDuplicate = true
                     ),
                     ReviewTransactionUiState(
@@ -56,6 +60,8 @@ object SampleData {
                         providerName = "BRAC Bank",
                         accountLast4 = "5678",
                         timeLabel = "8:00 AM",
+                        category = "Income",
+                        accountName = "BRAC Salary A/C",
                         needsVerification = true
                     )
                 )
@@ -70,7 +76,9 @@ object SampleData {
                         direction = TransactionDirection.EXPENSE,
                         providerName = "Nagad",
                         accountLast4 = "9012",
-                        timeLabel = "6:45 PM"
+                        timeLabel = "6:45 PM",
+                        category = "Health",
+                        accountName = "Nagad Wallet"
                     )
                 )
             )
