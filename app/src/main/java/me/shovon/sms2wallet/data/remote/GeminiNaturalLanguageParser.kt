@@ -35,6 +35,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import me.shovon.sms2wallet.domain.nlp.CategoryPrompt
 import me.shovon.sms2wallet.domain.nlp.NlPrompt
 import me.shovon.sms2wallet.domain.nlp.ParsedNlTransaction
 
@@ -162,6 +163,124 @@ class GeminiNaturalLanguageParser(
         }
 
         return transaction?.let { NlParseResult.Success(it) } ?: NlParseResult.EmptyResult
+    }
+
+    override suspend fun classify(
+        subjects: List<CategoryPrompt.Subject>,
+        categoryLabels: List<String>,
+        model: String,
+    ): CategorySuggestionResult {
+        // Nothing to choose from means nothing to ask: without categories the schema would have
+        // no enum and the model would be free to invent labels.
+        if (subjects.isEmpty() || categoryLabels.isEmpty()) {
+            return CategorySuggestionResult.Success(emptyMap())
+        }
+        val apiKey = apiKeyProvider() ?: return CategorySuggestionResult.NotConfigured
+
+        val body = buildJsonObject {
+            putJsonObject("systemInstruction") {
+                putJsonArray("parts") {
+                    add(
+                        buildJsonObject {
+                            put("text", CategoryPrompt.systemInstruction(categoryLabels))
+                        }
+                    )
+                }
+            }
+            putJsonArray("contents") {
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") {
+                            add(buildJsonObject { put("text", CategoryPrompt.userContent(subjects)) })
+                        }
+                    }
+                )
+            }
+            putJsonObject("generationConfig") {
+                put("responseMimeType", "application/json")
+                put("temperature", 0)
+                put("responseSchema", classificationSchema(categoryLabels))
+            }
+        }
+
+        val response = try {
+            httpClient.post("$baseUrl/models/$model:generateContent") {
+                header("x-goog-api-key", apiKey)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: HttpRequestTimeoutException) {
+            return CategorySuggestionResult.NetworkError("The request timed out.")
+        } catch (e: SocketTimeoutException) {
+            return CategorySuggestionResult.NetworkError("The request timed out.")
+        } catch (e: ConnectTimeoutException) {
+            return CategorySuggestionResult.NetworkError("Could not reach Google.")
+        } catch (e: IOException) {
+            return CategorySuggestionResult.NetworkError(e.message)
+        }
+
+        when (val failure = failureFor(response)) {
+            null -> Unit
+            NlParseResult.InvalidApiKey -> return CategorySuggestionResult.InvalidApiKey
+            is NlParseResult.HttpError ->
+                return CategorySuggestionResult.HttpError(failure.status, failure.message)
+            else -> return CategorySuggestionResult.NetworkError(null)
+        }
+
+        val text = try {
+            candidateText(response.bodyAsText())
+        } catch (e: SerializationException) {
+            null
+        } ?: return CategorySuggestionResult.Success(emptyMap())
+
+        return CategorySuggestionResult.Success(readAssignments(text, categoryLabels))
+    }
+
+    /**
+     * Reads the merchant/category pairs, dropping anything that does not name a real category.
+     *
+     * The enum should make that impossible, but this is the boundary where a model's output
+     * becomes a category id, and a label that does not exist would resolve to nothing anyway.
+     */
+    private fun readAssignments(payload: String, categoryLabels: List<String>): Map<String, String> {
+        val array = runCatching {
+            json.parseToJsonElement(payload).jsonObject["assignments"]?.jsonArray
+        }.getOrNull() ?: return emptyMap()
+
+        val allowed = categoryLabels.toSet()
+        return array.mapNotNull { element ->
+            val obj = element as? JsonObject ?: return@mapNotNull null
+            val merchant = obj.string("merchant")?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val category = obj.string("category")?.trim()?.takeIf { it in allowed } ?: return@mapNotNull null
+            merchant to category
+        }.toMap()
+    }
+
+    private fun classificationSchema(categoryLabels: List<String>): JsonObject = buildJsonObject {
+        put("type", "OBJECT")
+        putJsonObject("properties") {
+            putJsonObject("assignments") {
+                put("type", "ARRAY")
+                putJsonObject("items") {
+                    put("type", "OBJECT")
+                    putJsonObject("properties") {
+                        putJsonObject("merchant") { put("type", "STRING") }
+                        putJsonObject("category") {
+                            put("type", "STRING")
+                            put("enum", categoryLabels.toJsonArray())
+                        }
+                    }
+                    putJsonArray("required") {
+                        add(JsonPrimitive("merchant"))
+                        add(JsonPrimitive("category"))
+                    }
+                }
+            }
+        }
+        putJsonArray("required") { add(JsonPrimitive("assignments")) }
     }
 
     override suspend fun verify(model: String): String? {

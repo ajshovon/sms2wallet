@@ -12,7 +12,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.shovon.bdparser.TransactionType
+import me.shovon.sms2wallet.domain.model.WalletLabels
+import me.shovon.sms2wallet.domain.model.idFor
+import me.shovon.sms2wallet.domain.model.labelFor
+import me.shovon.sms2wallet.domain.model.labels
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.CategorySubject
+import me.shovon.sms2wallet.data.repository.CategorySuggestions
+import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.domain.category.MerchantCategoryGuesser
@@ -34,6 +41,7 @@ class TransactionDetailViewModel @Inject constructor(
     private val walletSyncRepository: WalletSyncRepository,
     private val settingsRepository: SettingsRepository,
     private val pushScheduler: PushScheduler,
+    private val intelligenceRepository: IntelligenceRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -71,12 +79,19 @@ class TransactionDetailViewModel @Inject constructor(
         val categoryId = entity.walletCategoryId
             ?: MerchantCategoryGuesser.guess(entity.merchant, categories)
 
+        val accountLabels = WalletLabels.forAccounts(accounts)
+        val categoryLabels = WalletLabels.forCategories(categories)
+        // Offered whenever there are categories to assign, matching the queue's bulk action:
+        // a learned rule or the built-in merchant table answers for free, so gating this on a
+        // Gemini key would hide a suggestion that needs no key at all.
+        val suggestionAvailable = categories.isNotEmpty()
+
         _uiState.value = entity.toDetailUiState(
-            availableAccounts = accounts.map { it.name },
-            availableCategories = categories.map { it.name },
-            accountName = accounts.firstOrNull { it.id == accountId }?.name.orEmpty(),
-            categoryName = categories.firstOrNull { it.id == categoryId }?.name.orEmpty(),
-        ).copy(isSaving = false)
+            availableAccounts = accountLabels.labels(),
+            availableCategories = categoryLabels.labels(),
+            accountName = accountLabels.labelFor(accountId).orEmpty(),
+            categoryName = categoryLabels.labelFor(categoryId).orEmpty(),
+        ).copy(isSaving = false, isSuggestionAvailable = suggestionAvailable)
     }
 
     fun onMerchantChange(value: String) { _uiState.value = _uiState.value.copy(merchant = value) }
@@ -117,8 +132,8 @@ class TransactionDetailViewModel @Inject constructor(
                 return@launch
             }
 
-            val accounts = walletSyncRepository.accounts.first()
-            val accountId = accounts.firstOrNull { it.name == state.accountName }?.id
+            val accountLabels = WalletLabels.forAccounts(walletSyncRepository.accounts.first())
+            val accountId = accountLabels.idFor(state.accountName)
             if (accountId == null) {
                 // Queuing a row with no Wallet account would put it in a state the send pipeline
                 // can never resolve, so refuse here where the user can still fix it.
@@ -128,7 +143,7 @@ class TransactionDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
-            val categories = walletSyncRepository.categories.first()
+            val categoryLabels = WalletLabels.forCategories(walletSyncRepository.categories.first())
 
             transactionRepository.update(
                 existing.copy(
@@ -141,13 +156,69 @@ class TransactionDetailViewModel @Inject constructor(
                     },
                     reference = state.note.takeIf { it.isNotBlank() },
                     walletAccountId = accountId,
-                    walletCategoryId = categories.firstOrNull { it.name == state.category }?.id,
+                    walletCategoryId = categoryLabels.idFor(state.category),
                     updatedAt = System.currentTimeMillis(),
                 )
+            )
+            // Learn the merchant -> category pairing from the confirmation. This is the point
+            // the user vouched for it, so the next transaction from this shop is answered
+            // on-device with no API call.
+            intelligenceRepository.rememberCategory(
+                merchant = state.merchant.takeIf { it.isNotBlank() },
+                bankName = existing.bankName,
+                walletCategoryId = categoryLabels.idFor(state.category),
             )
             if (transactionRepository.approveForSend(id)) pushScheduler.schedule()
             _uiState.value = _uiState.value.copy(isSaving = false)
             onDone()
+        }
+    }
+
+    /**
+     * Fills the category field with a suggestion, leaving it alone when there is none.
+     *
+     * Only ever offered, never applied silently on open: the user asked for this one, and a
+     * field that fills itself while being read is harder to trust than one that waits.
+     */
+    fun suggestCategory() {
+        val id = transactionId ?: return
+        viewModelScope.launch {
+            val entity = transactionRepository.findById(id) ?: return@launch
+            _uiState.value = _uiState.value.copy(isSuggestingCategory = true, suggestionMessage = null)
+
+            val subject = CategorySubject(
+                transactionId = id,
+                merchant = _uiState.value.merchant.takeIf { it.isNotBlank() } ?: entity.merchant,
+                isIncome = _uiState.value.direction == TransactionDirection.INCOME,
+                bankName = entity.bankName,
+            )
+
+            when (val result = intelligenceRepository.suggestCategories(listOf(subject))) {
+                is CategorySuggestions.Success -> {
+                    val categoryId = result.categoryIdByTransactionId[id]
+                    val categories = walletSyncRepository.categories.first()
+                    val label = WalletLabels.forCategories(categories).labelFor(categoryId)
+                    _uiState.value = _uiState.value.copy(
+                        category = label ?: _uiState.value.category,
+                        isSuggestingCategory = false,
+                        suggestionMessage = if (label == null) {
+                            "No confident match - pick one below."
+                        } else {
+                            null
+                        },
+                    )
+                }
+
+                CategorySuggestions.NotConfigured -> _uiState.value = _uiState.value.copy(
+                    isSuggestingCategory = false,
+                    suggestionMessage = "Add a Gemini API key in Settings to use this.",
+                )
+
+                is CategorySuggestions.Failure -> _uiState.value = _uiState.value.copy(
+                    isSuggestingCategory = false,
+                    suggestionMessage = result.message,
+                )
+            }
         }
     }
 

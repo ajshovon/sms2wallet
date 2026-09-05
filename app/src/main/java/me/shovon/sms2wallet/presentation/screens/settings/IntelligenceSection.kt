@@ -3,9 +3,17 @@ package me.shovon.sms2wallet.presentation.screens.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,6 +60,7 @@ fun IntelligenceSection(
     onModelChange: (String) -> Unit,
     onShareCategoryNamesChange: (Boolean) -> Unit,
     onShareAccountNamesChange: (Boolean) -> Unit,
+    onShareMerchantNamesChange: (Boolean) -> Unit,
     onDefaultAccountChange: (String) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -120,9 +129,19 @@ fun IntelligenceSection(
 
             TextButton(
                 onClick = { uriHandler.openUri(API_KEY_URL) },
-                modifier = Modifier.padding(top = Spacing.xxs)
+                modifier = Modifier
+                    .padding(top = Spacing.xxs)
+                    .semantics {
+                        contentDescription = "Get a free API key from Google AI Studio (opens browser)"
+                    }
             ) {
                 Text("Get a free API key")
+                Spacer(Modifier.size(Spacing.xs))
+                Icon(
+                    imageVector = SolarIcons.ArrowUpRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(IconSize.sm)
+                )
             }
 
             HorizontalDivider(
@@ -179,6 +198,18 @@ fun IntelligenceSection(
                 modifier = Modifier.padding(top = Spacing.sm)
             )
 
+            ShareToggleRow(
+                title = "Merchant names",
+                description = if (state.shareMerchantNames) {
+                    "Lets it suggest a category for a shop it has not seen before."
+                } else {
+                    "Merchant names from your SMS stay on this device. Categories are matched here."
+                },
+                checked = state.shareMerchantNames,
+                onCheckedChange = onShareMerchantNamesChange,
+                modifier = Modifier.padding(top = Spacing.sm)
+            )
+
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = Spacing.md),
                 color = MaterialTheme.colorScheme.outlineVariant
@@ -207,7 +238,15 @@ private fun ShareToggleRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
+            .padding(vertical = Spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -220,7 +259,7 @@ private fun ShareToggleRow(
                 modifier = Modifier.padding(top = Spacing.xxs)
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -238,6 +277,11 @@ private fun KeyStatusRow(status: ConnectionStatus) {
         text = message,
         style = MaterialTheme.typography.bodySmall,
         color = color,
-        modifier = Modifier.padding(top = Spacing.sm)
+        // The result of "Test key" arrives seconds after the tap, with no focus change to
+        // carry it. Without a live region a screen-reader user is left waiting on a verdict
+        // that has already been rendered.
+        modifier = Modifier
+            .padding(top = Spacing.sm)
+            .semantics { liveRegion = LiveRegionMode.Polite }
     )
 }

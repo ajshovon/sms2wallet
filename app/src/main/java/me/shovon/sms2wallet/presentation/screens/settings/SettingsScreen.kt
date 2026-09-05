@@ -1,5 +1,7 @@
 package me.shovon.sms2wallet.presentation.screens.settings
 
+import me.shovon.sms2wallet.presentation.model.LearnedCategoryUiState
+import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import android.os.Build
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -34,6 +36,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,6 +103,8 @@ fun SettingsContent(
     onGeminiModelChange: (String) -> Unit,
     onShareCategoryNamesChange: (Boolean) -> Unit,
     onShareAccountNamesChange: (Boolean) -> Unit,
+    onShareMerchantNamesChange: (Boolean) -> Unit,
+    onDeleteLearnedCategory: (Long) -> Unit,
     onDefaultAccountChange: (String) -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
@@ -179,8 +185,32 @@ fun SettingsContent(
                     onModelChange = onGeminiModelChange,
                     onShareCategoryNamesChange = onShareCategoryNamesChange,
                     onShareAccountNamesChange = onShareAccountNamesChange,
+                    onShareMerchantNamesChange = onShareMerchantNamesChange,
                     onDefaultAccountChange = onDefaultAccountChange
                 )
+            }
+
+            if (state.learnedCategories.isNotEmpty()) {
+                item(key = "learned-header") {
+                    SectionHeader(
+                        title = "Learned categories",
+                        supportingText = "Remembered when you push a transaction. Used before " +
+                            "anything is sent to Gemini.",
+                        modifier = Modifier.padding(top = Spacing.xl)
+                    )
+                }
+                itemsIndexed(
+                    items = state.learnedCategories,
+                    key = { _, learned -> learned.id }
+                ) { index, learned ->
+                    LearnedCategoryRow(
+                        learned = learned,
+                        index = index,
+                        count = state.learnedCategories.size,
+                        onDelete = { onDeleteLearnedCategory(learned.id) }
+                    )
+                    if (index < state.learnedCategories.lastIndex) GroupedRowDivider()
+                }
             }
 
             item(key = "parsers-header") {
@@ -285,6 +315,7 @@ private fun ThemeModeSelector(
                 selected = mode == selected,
                 onClick = { onSelect(mode) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                icon = {},
                 label = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -592,7 +623,13 @@ private fun WalletCatalogueRow(
                     strokeWidth = 2.dp
                 )
             } else {
-                TextButton(onClick = onSync, enabled = enabled) {
+                TextButton(
+                    onClick = onSync,
+                    enabled = enabled,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Sync accounts and categories from Wallet"
+                    }
+                ) {
                     Icon(
                         imageVector = SolarIcons.Refresh,
                         contentDescription = null,
@@ -699,7 +736,11 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
         is ConnectionStatus.Failed -> Triple(SolarIcons.Error, status.message, MaterialTheme.colorScheme.error)
     }
     Row(
-        modifier = Modifier.padding(top = Spacing.md),
+        // Announced when it changes: the connection verdict lands after the network call, with
+        // nothing else moving focus to it.
+        modifier = Modifier
+            .padding(top = Spacing.md)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
@@ -728,6 +769,8 @@ private fun SettingsScreenLightPreview() {
             onGeminiModelChange = {},
             onShareCategoryNamesChange = {},
             onShareAccountNamesChange = {},
+            onShareMerchantNamesChange = {},
+            onDeleteLearnedCategory = {},
             onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
@@ -759,6 +802,8 @@ private fun SettingsScreenDarkPreview() {
             onGeminiModelChange = {},
             onShareCategoryNamesChange = {},
             onShareAccountNamesChange = {},
+            onShareMerchantNamesChange = {},
+            onDeleteLearnedCategory = {},
             onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
@@ -767,5 +812,57 @@ private fun SettingsScreenDarkPreview() {
             onReminderTimeChange = { _, _ -> },
             onReminderSkipCountChange = {}
         )
+    }
+}
+
+/**
+ * One learned merchant->category pairing, with the way to forget it.
+ *
+ * Delete needs no confirmation: it removes a shortcut, not data. The next transaction from this
+ * merchant simply asks again, which is exactly the state the app was in before it learned.
+ */
+@Composable
+private fun LearnedCategoryRow(
+    learned: LearnedCategoryUiState,
+    index: Int,
+    count: Int,
+    onDelete: () -> Unit
+) {
+    Surface(
+        shape = groupedRowShape(index, count),
+        color = groupedSurfaceColor()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = learned.keyword,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = learned.categoryLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = SolarIcons.Close,
+                    contentDescription = "Forget ${learned.keyword}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(IconSize.md)
+                )
+            }
+        }
     }
 }

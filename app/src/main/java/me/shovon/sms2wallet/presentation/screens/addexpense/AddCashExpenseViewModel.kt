@@ -15,6 +15,10 @@ import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.push.PushScheduler
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
+import me.shovon.sms2wallet.domain.model.WalletLabels
+import me.shovon.sms2wallet.domain.model.idFor
+import me.shovon.sms2wallet.domain.model.labelFor
+import me.shovon.sms2wallet.domain.model.labels
 import me.shovon.sms2wallet.presentation.model.TransactionDetailUiState
 import me.shovon.sms2wallet.presentation.model.TransactionDirection
 import me.shovon.sms2wallet.presentation.navigation.Sms2WalletDestination
@@ -62,23 +66,23 @@ class AddCashExpenseViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val accounts = walletSyncRepository.accounts.first()
-            val categories = walletSyncRepository.categories.first()
+            val accountLabels = WalletLabels.forAccounts(walletSyncRepository.accounts.first())
+            val categoryLabels = WalletLabels.forCategories(walletSyncRepository.categories.first())
             val defaultAccountId = appPreferences.defaultAccountId.first()
 
             // Precedence: what the phrase named, then the configured default wallet, then
             // whatever is first. The default exists precisely so that a user who does not share
             // account names with the model still lands on the right account.
-            val accountName = prefillAccount.takeIf { name ->
-                accounts.any { it.name == name }
+            val accountLabel = prefillAccount.takeIf { label ->
+                accountLabels.idFor(label) != null
             }
-                ?: accounts.firstOrNull { it.id == defaultAccountId }?.name
-                ?: accounts.firstOrNull()?.name.orEmpty()
+                ?: accountLabels.labelFor(defaultAccountId)
+                ?: accountLabels.labels().firstOrNull().orEmpty()
 
             _uiState.value = _uiState.value.copy(
-                availableAccounts = accounts.map { it.name },
-                availableCategories = categories.map { it.name },
-                accountName = accountName,
+                availableAccounts = accountLabels.labels(),
+                availableCategories = categoryLabels.labels(),
+                accountName = accountLabel,
             )
         }
     }
@@ -113,8 +117,8 @@ class AddCashExpenseViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = state.copy(isSaving = true, errorMessage = null, amountError = null, accountError = null)
-            val accounts = walletSyncRepository.accounts.first()
-            val accountId = accounts.firstOrNull { it.name == state.accountName }?.id
+            val accountLabels = WalletLabels.forAccounts(walletSyncRepository.accounts.first())
+            val accountId = accountLabels.idFor(state.accountName)
             if (accountId == null) {
                 _uiState.value = state.copy(
                     isSaving = false,
@@ -122,7 +126,7 @@ class AddCashExpenseViewModel @Inject constructor(
                 )
                 return@launch
             }
-            val categories = walletSyncRepository.categories.first()
+            val categoryLabels = WalletLabels.forCategories(walletSyncRepository.categories.first())
 
             transactionRepository.insertManual(
                 amount = amount,
@@ -130,7 +134,7 @@ class AddCashExpenseViewModel @Inject constructor(
                 merchant = state.merchant.takeIf { it.isNotBlank() },
                 note = state.note.takeIf { it.isNotBlank() },
                 walletAccountId = accountId,
-                walletCategoryId = categories.firstOrNull { it.name == state.category }?.id,
+                walletCategoryId = categoryLabels.idFor(state.category),
             )
             pushScheduler.schedule()
             _uiState.value = _uiState.value.copy(isSaving = false)

@@ -54,7 +54,11 @@ data class ReviewQueueUiState(
     val selectedIds: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     /** True until the user has pushed or dismissed once; drives the one-time swipe hint. */
-    val showSwipeHint: Boolean = false
+    val showSwipeHint: Boolean = false,
+    /** True once a Gemini key is stored, which gates the bulk-suggest action. */
+    val isSuggestionAvailable: Boolean = false,
+    /** True while a batch category suggestion is in flight. */
+    val isSuggestingCategories: Boolean = false
 ) {
     val isEmpty: Boolean get() = groups.isEmpty() && !isLoading
     val totalCount: Int get() = groups.sumOf { it.transactions.size }

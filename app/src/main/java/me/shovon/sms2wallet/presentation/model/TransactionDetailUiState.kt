@@ -23,6 +23,12 @@ data class TransactionDetailUiState(
     val isSuspectedDuplicate: Boolean = false,
     val needsVerification: Boolean = false,
     val isSaving: Boolean = false,
+    /** True once a Gemini key is stored, which is what gates the suggest affordance. */
+    val isSuggestionAvailable: Boolean = false,
+    /** True while a category suggestion is in flight. */
+    val isSuggestingCategory: Boolean = false,
+    /** Why a suggestion produced nothing, or null when there is nothing to say. */
+    val suggestionMessage: String? = null,
     /** Form-level failure shown as a summary above the form (e.g. "this row no longer exists"). */
     val errorMessage: String? = null,
     /** Field-level errors, rendered inline beneath the field they belong to. */

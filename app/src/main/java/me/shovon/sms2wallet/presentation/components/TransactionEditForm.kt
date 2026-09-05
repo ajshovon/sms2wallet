@@ -1,5 +1,15 @@
 package me.shovon.sms2wallet.presentation.components
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +32,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,7 +59,9 @@ fun TransactionEditForm(
     onCategoryChange: (String) -> Unit,
     onAccountChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Null hides the suggestion affordance entirely, for callers with no AI configured. */
+    onSuggestCategory: (() -> Unit)? = null
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Column {
@@ -81,16 +96,25 @@ fun TransactionEditForm(
                             }
                             onAmountChange(updated)
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .heightIn(min = 36.dp)
+                            .semantics {
+                                contentDescription = "Add $inc Taka"
+                            }
                     ) {
-                        Text(
-                            text = "+৳$inc",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
-                        )
+                        Box(
+                            contentAlignment = androidx.compose.ui.Alignment.Center,
+                            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)
+                        ) {
+                            Text(
+                                text = "+৳$inc",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
@@ -101,12 +125,12 @@ fun TransactionEditForm(
                 TransactionDirection.entries.forEachIndexed { index, direction ->
                     val isSelected = state.direction == direction
                     val selectedColor = if (direction == TransactionDirection.EXPENSE) {
-                        MaterialTheme.colorScheme.errorContainer
+                        Sms2WalletTheme.extendedColors.expense.copy(alpha = 0.15f)
                     } else {
-                        Sms2WalletTheme.extendedColors.income.copy(alpha = 0.2f)
+                        Sms2WalletTheme.extendedColors.income.copy(alpha = 0.15f)
                     }
                     val selectedContentColor = if (direction == TransactionDirection.EXPENSE) {
-                        MaterialTheme.colorScheme.onErrorContainer
+                        Sms2WalletTheme.extendedColors.expense
                     } else {
                         Sms2WalletTheme.extendedColors.income
                     }
@@ -139,19 +163,60 @@ fun TransactionEditForm(
             placeholder = "Who was paid"
         )
 
-        PickerField(
-            label = "Category",
-            value = state.category,
-            options = state.availableCategories,
-            onSelect = onCategoryChange,
-            placeholder = "Choose a category",
-            searchPlaceholder = "Search categories",
-            supportingText = if (state.availableCategories.isEmpty()) {
-                "Sync your Wallet account in Settings to load categories."
-            } else {
-                null
+        Column {
+            PickerField(
+                label = "Category",
+                value = state.category,
+                options = state.availableCategories,
+                onSelect = onCategoryChange,
+                placeholder = "Choose a category",
+                searchPlaceholder = "Search categories",
+                supportingText = if (state.availableCategories.isEmpty()) {
+                    "Sync your Wallet account in Settings to load categories."
+                } else {
+                    null
+                }
+            )
+
+            // Sits under the field it fills, not beside the push action. Push writes to the
+            // user's real Wallet and cannot be undone; nothing optional belongs next to it.
+            if (onSuggestCategory != null && state.availableCategories.isNotEmpty()) {
+                TextButton(
+                    onClick = onSuggestCategory,
+                    enabled = !state.isSuggestingCategory,
+                    contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xxs),
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                ) {
+                    if (state.isSuggestingCategory) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(IconSize.sm),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.size(Spacing.xs))
+                        Text("Suggesting…")
+                    } else {
+                        Icon(
+                            imageVector = SolarIcons.Science,
+                            contentDescription = null,
+                            modifier = Modifier.size(IconSize.sm)
+                        )
+                        Spacer(Modifier.size(Spacing.xs))
+                        Text("Suggest a category")
+                    }
+                }
             }
-        )
+
+            state.suggestionMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(start = Spacing.sm, top = Spacing.xxs)
+                        .semantics { liveRegion = LiveRegionMode.Polite }
+                )
+            }
+        }
 
         PickerField(
             label = "Account",

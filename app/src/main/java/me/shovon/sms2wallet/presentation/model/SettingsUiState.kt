@@ -90,6 +90,7 @@ data class IntelligenceUiState(
     val modelOptions: List<String> = IntelligenceSettings.MODEL_OPTIONS,
     val shareCategoryNames: Boolean = true,
     val shareAccountNames: Boolean = false,
+    val shareMerchantNames: Boolean = false,
     /** Null when no default is set, in which case the first cached account is used. */
     val defaultAccountName: String? = null,
     val availableAccountNames: List<String> = emptyList()
@@ -104,5 +105,18 @@ data class SettingsUiState(
     val parserSettings: List<ParserSettingUiState> = emptyList(),
     val accountMappings: List<AccountMappingRowUiState> = emptyList(),
     val reminders: ReminderSettingsUiState = ReminderSettingsUiState(),
-    val intelligence: IntelligenceUiState = IntelligenceUiState()
+    val intelligence: IntelligenceUiState = IntelligenceUiState(),
+    val learnedCategories: List<LearnedCategoryUiState> = emptyList()
+)
+
+/**
+ * One merchant->category pairing the app has learned from a confirmed transaction.
+ *
+ * Surfaced so the learning is inspectable and reversible: a rule that quietly files every
+ * future transaction from a shop is only trustworthy if the user can see and delete it.
+ */
+data class LearnedCategoryUiState(
+    val id: Long,
+    val keyword: String,
+    val categoryLabel: String
 )

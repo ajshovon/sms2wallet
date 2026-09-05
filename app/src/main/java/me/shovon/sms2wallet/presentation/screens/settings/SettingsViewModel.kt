@@ -20,11 +20,17 @@ import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
+import me.shovon.sms2wallet.domain.model.WalletLabel
+import me.shovon.sms2wallet.domain.model.WalletLabels
+import me.shovon.sms2wallet.domain.model.idFor
+import me.shovon.sms2wallet.domain.model.labelFor
+import me.shovon.sms2wallet.domain.model.labels
 import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.sms2wallet.presentation.model.AccountMappingRowUiState
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
 import me.shovon.sms2wallet.presentation.model.IntelligenceUiState
+import me.shovon.sms2wallet.presentation.model.LearnedCategoryUiState
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
@@ -92,7 +98,7 @@ class SettingsViewModel @Inject constructor(
         val reminderMinutes = reminderBits.timeMinutes
         val reminderThreshold = reminderBits.threshold
 
-        val accountNames = walletAccounts.map { it.name }
+        val accountLabels = WalletLabels.forAccounts(walletAccounts)
         val mappedNameByBank = mappings.associateBy({ it.bankName }, { it.walletAccountName })
 
         SettingsUiState(
@@ -115,7 +121,7 @@ class SettingsViewModel @Inject constructor(
                     mappedAccountName = mappedNameByBank[name],
                 )
             },
-            accountMappings = buildAccountMappingRows(sources, mappings, accountNames),
+            accountMappings = buildAccountMappingRows(sources, mappings, accountLabels),
             themeMode = reminderBits.themeMode,
             accentColor = reminderBits.accentColor,
             reminders = ReminderSettingsUiState(
@@ -129,8 +135,28 @@ class SettingsViewModel @Inject constructor(
 
     // Folded in after the fact for the same reason as on the dashboard: `combine` takes five
     // typed flows, and this section has three sources of its own.
+    private val learnedCategories: Flow<List<LearnedCategoryUiState>> = combine(
+        settingsRepository.observeCategoryRules(),
+        walletSyncRepository.categories,
+    ) { rules, categories ->
+        val labels = WalletLabels.forCategories(categories)
+        rules.map { rule ->
+            LearnedCategoryUiState(
+                id = rule.id,
+                keyword = rule.keyword,
+                // A rule can outlive the category it points at, so say so rather than showing
+                // a blank row the user cannot interpret.
+                categoryLabel = labels.labelFor(rule.walletCategoryId) ?: "Category no longer exists",
+            )
+        }
+    }
+
+    private val baseWithLearned = combine(baseState, learnedCategories) { base, learned ->
+        base.copy(learnedCategories = learned)
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
-        baseState,
+        baseWithLearned,
         intelligenceState,
         intelligenceRepository.settings,
         intelligenceRepository.isConfigured,
@@ -142,8 +168,9 @@ class SettingsViewModel @Inject constructor(
                 model = settings.model,
                 shareCategoryNames = settings.shareCategoryNames,
                 shareAccountNames = settings.shareAccountNames,
-                defaultAccountName = accounts.firstOrNull { it.id == settings.defaultAccountId }?.name,
-                availableAccountNames = accounts.map { it.name },
+                shareMerchantNames = settings.shareMerchantNames,
+                defaultAccountName = WalletLabels.forAccounts(accounts).labelFor(settings.defaultAccountId),
+                availableAccountNames = WalletLabels.forAccounts(accounts).labels(),
             )
         )
     }.stateIn(
@@ -204,11 +231,24 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { intelligenceRepository.setShareAccountNames(share) }
     }
 
+    fun setShareMerchantNames(share: Boolean) {
+        viewModelScope.launch { intelligenceRepository.setShareMerchantNames(share) }
+    }
+
+    /** Forgets one learned merchant->category pairing. */
+    fun deleteLearnedCategory(id: Long) {
+        viewModelScope.launch {
+            settingsRepository.observeCategoryRules().first()
+                .firstOrNull { it.id == id }
+                ?.let { settingsRepository.deleteCategoryRule(it) }
+        }
+    }
+
     /** [accountName] is resolved to an id here; null clears the default. */
     fun setDefaultAccount(accountName: String?) {
         viewModelScope.launch {
-            val id = accountName?.let { name ->
-                walletSyncRepository.accounts.first().firstOrNull { it.name == name }?.id
+            val id = accountName?.let { label ->
+                WalletLabels.forAccounts(walletSyncRepository.accounts.first()).idFor(label)
             }
             intelligenceRepository.setDefaultAccountId(id)
         }
@@ -222,20 +262,23 @@ class SettingsViewModel @Inject constructor(
     private fun buildAccountMappingRows(
         sources: List<me.shovon.sms2wallet.data.local.dao.TransactionSource>,
         mappings: List<AccountMappingEntity>,
-        accountNames: List<String>,
+        accountLabels: List<WalletLabel>,
     ): List<AccountMappingRowUiState> {
         val fromTransactions = sources.map { it.bankName to (it.accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4) }
         val fromMappings = mappings.map { it.bankName to it.accountLast4 }
-        val mappedNameBySource = mappings.associateBy(
+        // Resolved from the stored id, not the stored name: the name is a denormalised copy
+        // taken when the mapping was made, and it has to match one of the picker's options
+        // exactly or the picker shows a value it cannot offer.
+        val mappedLabelBySource = mappings.associateBy(
             { it.bankName to it.accountLast4 },
-            { it.walletAccountName },
+            { accountLabels.labelFor(it.walletAccountId) },
         )
         return (fromTransactions + fromMappings).distinct().sortedBy { it.first }.map { (bank, last4) ->
             AccountMappingRowUiState(
                 sourceId = "$bank|$last4",
                 sourceLabel = if (last4.isBlank()) bank else "$bank •••• $last4",
-                mappedWalletAccountName = mappedNameBySource[bank to last4],
-                availableWalletAccountNames = accountNames,
+                mappedWalletAccountName = mappedLabelBySource[bank to last4],
+                availableWalletAccountNames = accountLabels.labels(),
             )
         }
     }
@@ -360,8 +403,9 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val bankName = sourceId.substringBefore('|')
             val last4 = sourceId.substringAfter('|', AccountMappingEntity.UNKNOWN_LAST4)
-            val account = walletSyncRepository.accounts.first().firstOrNull { it.name == walletAccountName }
-                ?: return@launch
+            val accounts = walletSyncRepository.accounts.first()
+            val accountId = WalletLabels.forAccounts(accounts).idFor(walletAccountName) ?: return@launch
+            val account = accounts.firstOrNull { it.id == accountId } ?: return@launch
             val existing = settingsRepository.observeAccountMappings().first()
                 .firstOrNull { it.bankName == bankName && it.accountLast4 == last4 }
             settingsRepository.upsertAccountMapping(

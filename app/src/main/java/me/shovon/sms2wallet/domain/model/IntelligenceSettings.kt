@@ -26,6 +26,14 @@ data class IntelligenceSettings(
      */
     val shareAccountNames: Boolean = false,
     /**
+     * Send merchant names from parsed SMS so the model can suggest a category for them.
+     *
+     * Off by default, and separate from [shareCategoryNames], because it is a different class
+     * of data: without it the only thing that ever leaves the device is a phrase the user typed
+     * themselves. This sends names read out of their bank messages.
+     */
+    val shareMerchantNames: Boolean = false,
+    /**
      * Account used for a typed entry when the model was not asked for an account, or named
      * none. Also the pre-selected account on the manual add screen.
      */

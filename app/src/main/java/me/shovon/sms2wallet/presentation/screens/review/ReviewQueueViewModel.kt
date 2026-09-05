@@ -1,5 +1,7 @@
 package me.shovon.sms2wallet.presentation.screens.review
 
+import kotlinx.coroutines.flow.first
+import me.shovon.bdparser.TransactionType
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +18,9 @@ import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.local.dao.WalletAccountDao
 import me.shovon.sms2wallet.data.local.dao.WalletCategoryDao
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.CategorySubject
+import me.shovon.sms2wallet.data.repository.CategorySuggestions
+import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.presentation.model.ReviewQueueUiState
@@ -35,11 +40,15 @@ class ReviewQueueViewModel @Inject constructor(
     private val walletCategoryDao: WalletCategoryDao,
     private val walletAccountDao: WalletAccountDao,
     private val pushScheduler: PushScheduler,
+    private val intelligenceRepository: IntelligenceRepository,
 ) : ViewModel() {
 
     private val selection = MutableStateFlow(SelectionState())
 
-    val uiState: StateFlow<ReviewQueueUiState> = combine(
+    /** Screen-local progress for the bulk suggestion, which has no home in the data layer. */
+    private val suggesting = MutableStateFlow(false)
+
+    private val baseState = combine(
         transactionRepository.observeReviewQueue(),
         walletCategoryDao.observeAll(),
         walletAccountDao.observeAll(),
@@ -59,11 +68,88 @@ class ReviewQueueViewModel @Inject constructor(
             isLoading = false,
             showSwipeHint = !hasActed,
         )
+    }
+
+    val uiState: StateFlow<ReviewQueueUiState> = combine(
+        baseState,
+        suggesting,
+        walletCategoryDao.observeAll(),
+    ) { base, isSuggesting, categories ->
+        // Offered whenever there are categories to assign, not only when a Gemini key exists:
+        // learned rules and the built-in merchant table answer for free, and hiding the action
+        // without a key would hide functionality that needs no key.
+        base.copy(isSuggestingCategories = isSuggesting, isSuggestionAvailable = categories.isNotEmpty())
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
         initialValue = ReviewQueueUiState(isLoading = true),
     )
+
+    /**
+     * Fills in the missing categories across the whole queue in one pass.
+     *
+     * The batching is the point: rows already answerable from a learned rule or the built-in
+     * table never leave the device, the remainder go as a single de-duplicated request, and ten
+     * rows from the same shop cost one entry rather than ten.
+     *
+     * Rows that already have a category are left alone - this fills gaps, it does not overrule
+     * decisions the user has already made.
+     *
+     */
+    fun suggestMissingCategories() {
+        viewModelScope.launch {
+            val rows = transactionRepository.observeReviewQueue().first()
+            val needing = rows.filter { it.walletCategoryId.isNullOrBlank() }
+            if (needing.isEmpty()) {
+                _messages.send("Every transaction already has a category.")
+                return@launch
+            }
+
+            suggesting.value = true
+            val subjects = needing.map { row ->
+                CategorySubject(
+                    transactionId = row.id,
+                    merchant = row.merchant,
+                    isIncome = row.type == TransactionType.INCOME.name,
+                    bankName = row.bankName,
+                )
+            }
+
+            when (val result = intelligenceRepository.suggestCategories(subjects)) {
+                is CategorySuggestions.Success -> {
+                    val note = result.note
+                    var applied = 0
+                    result.categoryIdByTransactionId.forEach { (id, categoryId) ->
+                        val row = needing.firstOrNull { it.id == id } ?: return@forEach
+                        transactionRepository.update(
+                            row.copy(
+                                walletCategoryId = categoryId,
+                                updatedAt = System.currentTimeMillis(),
+                            )
+                        )
+                        applied++
+                    }
+                    suggesting.value = false
+                    val summary = when {
+                        applied == 0 -> "No confident matches - pick those by hand."
+                        applied == needing.size -> "Filled in $applied categories."
+                        else -> "Filled in $applied of ${needing.size}; the rest need a hand."
+                    }
+                    _messages.send(note?.let { "$summary $it" } ?: summary)
+                }
+
+                CategorySuggestions.NotConfigured -> {
+                    suggesting.value = false
+                    _messages.send("Add a Gemini API key in Settings to use this.")
+                }
+
+                is CategorySuggestions.Failure -> {
+                    suggesting.value = false
+                    _messages.send(result.message)
+                }
+            }
+        }
+    }
 
     /**
      * Approves one row for sending (PARSED/FAILED_RETRYABLE -> QUEUED).

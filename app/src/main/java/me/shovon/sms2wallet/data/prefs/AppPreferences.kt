@@ -150,6 +150,7 @@ class AppPreferences(
             model = prefs[GEMINI_MODEL_KEY] ?: IntelligenceSettings.DEFAULT_MODEL,
             shareCategoryNames = prefs[SHARE_CATEGORY_NAMES_KEY] ?: true,
             shareAccountNames = prefs[SHARE_ACCOUNT_NAMES_KEY] ?: false,
+            shareMerchantNames = prefs[SHARE_MERCHANT_NAMES_KEY] ?: false,
             defaultAccountId = prefs[DEFAULT_ACCOUNT_ID_KEY],
         )
     }
@@ -170,6 +171,10 @@ class AppPreferences(
 
     suspend fun setShareAccountNames(share: Boolean) {
         dataStore.edit { it[SHARE_ACCOUNT_NAMES_KEY] = share }
+    }
+
+    suspend fun setShareMerchantNames(share: Boolean) {
+        dataStore.edit { it[SHARE_MERCHANT_NAMES_KEY] = share }
     }
 
     /** Pass null to clear the default and fall back to the first cached account. */
@@ -232,6 +237,7 @@ class AppPreferences(
         val GEMINI_MODEL_KEY = stringPreferencesKey("gemini_model")
         val SHARE_CATEGORY_NAMES_KEY = booleanPreferencesKey("intelligence_share_category_names")
         val SHARE_ACCOUNT_NAMES_KEY = booleanPreferencesKey("intelligence_share_account_names")
+        val SHARE_MERCHANT_NAMES_KEY = booleanPreferencesKey("intelligence_share_merchant_names")
         val DEFAULT_ACCOUNT_ID_KEY = stringPreferencesKey("default_wallet_account_id")
     }
 }

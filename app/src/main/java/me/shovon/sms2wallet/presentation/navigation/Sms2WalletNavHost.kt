@@ -1,10 +1,20 @@
 package me.shovon.sms2wallet.presentation.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +40,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
@@ -111,55 +121,56 @@ fun Sms2WalletRootScreen(
     val rootNavViewModel: RootNavViewModel = hiltViewModel()
     val pendingReviewCount by rootNavViewModel.pendingReviewCount.collectAsStateWithLifecycle()
 
-    Scaffold(
-        contentWindowInsets = WindowInsets.navigationBars,
-        bottomBar = {
-            if (showBottomBar) {
-                Sms2WalletBottomBar(
-                    currentDestination = currentDestination,
-                    pendingReviewCount = pendingReviewCount,
-                    onNavigateToDestination = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    onAddCashExpense = {
-                        navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute())
-                    }
-                )
+    val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeight = 64.dp + navBarBottomInset
+
+    val navigateToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
             }
+            launchSingleTop = true
+            restoreState = true
         }
-    ) { innerPadding ->
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         NavHost(
             navController = navController,
             startDestination = Sms2WalletDestination.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         ) {
             composable(Sms2WalletDestination.Dashboard.route) {
                 val viewModel: DashboardViewModel = hiltViewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                DashboardScreen(
-                    state = state,
-                    onAddCashExpense = {
-                        navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute())
-                    },
-                    onViewReviewQueue = { navController.navigate(Sms2WalletDestination.ReviewQueue.route) },
-                    onOpenParserPlayground = { navController.navigate(Sms2WalletDestination.ParserPlayground.createRoute()) },
-                    onOpenActivity = { navController.navigate(Sms2WalletDestination.Activity.route) },
-                    onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
-                    onQuickAddInputChange = viewModel::onQuickAddInputChange,
-                    onQuickAddSubmit = {
-                        viewModel.submitQuickAdd { prefill ->
-                            navController.navigate(
-                                Sms2WalletDestination.AddCashExpense.createRoute(prefill)
-                            )
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
+                    DashboardScreen(
+                        state = state,
+                        onAddCashExpense = {
+                            navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute()) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onViewReviewQueue = { navigateToTab(Sms2WalletDestination.ReviewQueue.route) },
+                        onOpenParserPlayground = { navController.navigate(Sms2WalletDestination.ParserPlayground.createRoute()) },
+                        onOpenActivity = { navigateToTab(Sms2WalletDestination.Activity.route) },
+                        onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
+                        onQuickAddInputChange = viewModel::onQuickAddInputChange,
+                        onQuickAddSubmit = {
+                            viewModel.submitQuickAdd { prefill ->
+                                navController.navigate(
+                                    Sms2WalletDestination.AddCashExpense.createRoute(prefill)
+                                ) {
+                                    launchSingleTop = true
+                                }
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
             composable(Sms2WalletDestination.ReviewQueue.route) {
                 val viewModel: ReviewQueueViewModel = hiltViewModel()
@@ -173,57 +184,66 @@ fun Sms2WalletRootScreen(
                     viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
                 }
 
-                ReviewQueueContent(
-                    state = state,
-                    snackbarHostState = snackbarHostState,
-                    onOpenTransaction = { id ->
-                        navController.navigate(Sms2WalletDestination.TransactionDetail.createRoute(id))
-                    },
-                    onPush = viewModel::approve,
-                    onDismiss = viewModel::dismiss,
-                    onToggleMultiSelect = viewModel::toggleMultiSelect,
-                    onToggleSelected = viewModel::setSelected,
-                    onBulkPush = viewModel::approveSelected,
-                    onBulkDismiss = viewModel::dismissSelected,
-                    onDismissAll = viewModel::dismissAll
-                )
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
+                    ReviewQueueContent(
+                        state = state,
+                        snackbarHostState = snackbarHostState,
+                        onOpenTransaction = { id ->
+                            navController.navigate(Sms2WalletDestination.TransactionDetail.createRoute(id))
+                        },
+                        onPush = viewModel::approve,
+                        onDismiss = viewModel::dismiss,
+                        onToggleMultiSelect = viewModel::toggleMultiSelect,
+                        onToggleSelected = viewModel::setSelected,
+                        onBulkPush = viewModel::approveSelected,
+                        onBulkDismiss = viewModel::dismissSelected,
+                        onDismissAll = viewModel::dismissAll,
+                    onSuggestCategories = viewModel::suggestMissingCategories
+                    )
+                }
             }
             composable(Sms2WalletDestination.Settings.route) {
                 val viewModel: SettingsViewModel = hiltViewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                SettingsContent(
-                    state = state,
-                    onOpenParserPlayground = { navController.navigate(Sms2WalletDestination.ParserPlayground.createRoute()) },
-                    onTokenChange = viewModel::onTokenChange,
-                    onToggleTokenVisibility = viewModel::onToggleTokenVisibility,
-                    onTestConnection = viewModel::testConnection,
-                    onSyncWalletData = viewModel::syncWalletData,
-                    onThemeModeChange = viewModel::setThemeMode,
-                    onAccentColorChange = viewModel::setAccentColor,
-                    onGeminiKeyChange = viewModel::onGeminiKeyChange,
-                    onToggleGeminiKeyVisibility = viewModel::onToggleGeminiKeyVisibility,
-                    onTestGeminiKey = viewModel::testGeminiKey,
-                    onClearGeminiKey = viewModel::clearGeminiKey,
-                    onGeminiModelChange = viewModel::setGeminiModel,
-                    onShareCategoryNamesChange = viewModel::setShareCategoryNames,
-                    onShareAccountNamesChange = viewModel::setShareAccountNames,
-                    onDefaultAccountChange = viewModel::setDefaultAccount,
-                    onParserEnabledChange = viewModel::setParserEnabled,
-                    onParserAutoPushChange = viewModel::setParserAutoPush,
-                    onAccountMappingChange = viewModel::setAccountMapping,
-                    onReminderEnabledChange = viewModel::setReminderEnabled,
-                    onReminderTimeChange = viewModel::setReminderTime,
-                    onReminderSkipCountChange = viewModel::setReminderSkipCount
-                )
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
+                    SettingsContent(
+                        state = state,
+                        onOpenParserPlayground = { navController.navigate(Sms2WalletDestination.ParserPlayground.createRoute()) },
+                        onTokenChange = viewModel::onTokenChange,
+                        onToggleTokenVisibility = viewModel::onToggleTokenVisibility,
+                        onTestConnection = viewModel::testConnection,
+                        onSyncWalletData = viewModel::syncWalletData,
+                        onThemeModeChange = viewModel::setThemeMode,
+                        onAccentColorChange = viewModel::setAccentColor,
+                        onGeminiKeyChange = viewModel::onGeminiKeyChange,
+                        onToggleGeminiKeyVisibility = viewModel::onToggleGeminiKeyVisibility,
+                        onTestGeminiKey = viewModel::testGeminiKey,
+                        onClearGeminiKey = viewModel::clearGeminiKey,
+                        onGeminiModelChange = viewModel::setGeminiModel,
+                        onShareCategoryNamesChange = viewModel::setShareCategoryNames,
+                        onShareAccountNamesChange = viewModel::setShareAccountNames,
+                    onShareMerchantNamesChange = viewModel::setShareMerchantNames,
+                    onDeleteLearnedCategory = viewModel::deleteLearnedCategory,
+                        onDefaultAccountChange = viewModel::setDefaultAccount,
+                        onParserEnabledChange = viewModel::setParserEnabled,
+                        onParserAutoPushChange = viewModel::setParserAutoPush,
+                        onAccountMappingChange = viewModel::setAccountMapping,
+                        onReminderEnabledChange = viewModel::setReminderEnabled,
+                        onReminderTimeChange = viewModel::setReminderTime,
+                        onReminderSkipCountChange = viewModel::setReminderSkipCount
+                    )
+                }
             }
             composable(Sms2WalletDestination.Activity.route) {
                 val viewModel: ActivityViewModel = hiltViewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                ActivityContent(
-                    state = state,
-                    onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
-                    onRetry = viewModel::retry
-                )
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
+                    ActivityContent(
+                        state = state,
+                        onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
+                        onRetry = viewModel::retry
+                    )
+                }
             }
             composable(Sms2WalletDestination.UnmatchedSms.route) {
                 val viewModel: UnmatchedSmsViewModel = hiltViewModel()
@@ -259,11 +279,39 @@ fun Sms2WalletRootScreen(
                         type = androidx.navigation.NavType.StringType
                         defaultValue = ""
                     }
+                },
+                enterTransition = {
+                    slideIntoContainer(
+                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
+                },
+                exitTransition = {
+                    fadeOut(animationSpec = tween(150))
+                },
+                popEnterTransition = {
+                    fadeIn(animationSpec = tween(150))
+                },
+                popExitTransition = {
+                    slideOutOfContainer(
+                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
                 }
             ) {
                 AddCashExpenseScreen(
                     onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
+                    onSaved = { navController.popBackStack() },
+                    onOpenSettings = {
+                        navController.popBackStack()
+                        navigateToTab(Sms2WalletDestination.Settings.route)
+                    }
                 )
             }
             composable(
@@ -279,6 +327,37 @@ fun Sms2WalletRootScreen(
                     onSaved = { navController.popBackStack() }
                 )
             }
+        }
+
+        // Animated Bottom Bar with Right Cutout Cradle and Pop-out FAB
+        AnimatedVisibility(
+            visible = showBottomBar,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(animationSpec = tween(150)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeOut(animationSpec = tween(150))
+        ) {
+            Sms2WalletBottomBar(
+                currentDestination = currentDestination,
+                pendingReviewCount = pendingReviewCount,
+                onNavigateToDestination = navigateToTab,
+                onAddCashExpense = {
+                    navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute()) {
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
     }
 }
@@ -374,6 +453,7 @@ private fun Sms2WalletBottomBar(
     modifier: Modifier = Modifier
 ) {
     val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeight = 64.dp + navBarBottomInset
 
     Box(
         modifier = modifier
@@ -390,6 +470,7 @@ private fun Sms2WalletBottomBar(
                 notchMarginEnd = 16.dp
             ),
             color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             shadowElevation = 8.dp,
             border = BorderStroke(
                 width = 0.5.dp,
@@ -399,8 +480,8 @@ private fun Sms2WalletBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .height(64.dp)
+                    .height(bottomBarHeight)
+                    .padding(bottom = navBarBottomInset)
                     .padding(start = Spacing.md, end = 86.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -452,6 +533,17 @@ private fun Sms2WalletBottomBar(
         }
 
         // Distinct Floating Action Pod Nestled in the Cutout Cradle (Right-Flanked)
+        val fabInteractionSource = remember { MutableInteractionSource() }
+        val isFabPressed by fabInteractionSource.collectIsPressedAsState()
+        val fabScale by animateFloatAsState(
+            targetValue = if (isFabPressed) 0.90f else 1.0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            ),
+            label = "fab_scale"
+        )
+
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -462,11 +554,13 @@ private fun Sms2WalletBottomBar(
         ) {
             Surface(
                 onClick = onAddCashExpense,
+                interactionSource = fabInteractionSource,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
                 shadowElevation = 8.dp,
                 border = BorderStroke(3.5.dp, MaterialTheme.colorScheme.surface),
                 modifier = Modifier
+                    .scale(fabScale)
                     .size(52.dp)
                     .semantics {
                         role = Role.Button
@@ -592,7 +686,7 @@ private fun IbkrNavTab(
                     ) {
                         Icon(
                             imageVector = item.unselectedIcon,
-                            contentDescription = item.label,
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp)
                         )
@@ -600,7 +694,7 @@ private fun IbkrNavTab(
                 } else {
                     Icon(
                         imageVector = item.unselectedIcon,
-                        contentDescription = item.label,
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )

@@ -10,13 +10,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -74,6 +77,7 @@ fun ReviewQueueContent(
     onBulkPush: () -> Unit,
     onBulkDismiss: () -> Unit,
     onDismissAll: () -> Unit,
+    onSuggestCategories: () -> Unit = {},
     snackbarHostState: androidx.compose.material3.SnackbarHostState? = null
 ) {
     var confirmDismissAll by remember { mutableStateOf(false) }
@@ -100,7 +104,12 @@ fun ReviewQueueContent(
                 IconButton(onClick = onToggleMultiSelect) {
                     Icon(SolarIcons.Checklist, contentDescription = "Select multiple")
                 }
-                QueueOverflowMenu(onDismissAllClick = { confirmDismissAll = true })
+                QueueOverflowMenu(
+                    onDismissAllClick = { confirmDismissAll = true },
+                    canSuggestCategories = state.isSuggestionAvailable,
+                    isSuggestingCategories = state.isSuggestingCategories,
+                    onSuggestCategoriesClick = onSuggestCategories
+                )
             }
         }
     ) { padding ->
@@ -199,6 +208,36 @@ fun ReviewQueueContent(
                     )
                 }
             }
+
+            if (visibleGroups.isEmpty() && filterAttentionOnly) {
+                item(key = "empty-attention-filter") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.xxl),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = SolarIcons.CheckCircle,
+                            contentDescription = null,
+                            tint = Sms2WalletTheme.extendedColors.income,
+                            modifier = Modifier.size(IconSize.xl)
+                        )
+                        Spacer(Modifier.height(Spacing.md))
+                        Text(
+                            text = "No transactions need attention",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            text = "All remaining transactions have verified accounts and categories.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -224,13 +263,41 @@ fun ReviewQueueContent(
  * instead of sitting next to the per-row actions where it can be hit by accident.
  */
 @Composable
-private fun QueueOverflowMenu(onDismissAllClick: () -> Unit) {
+private fun QueueOverflowMenu(
+    onDismissAllClick: () -> Unit,
+    canSuggestCategories: Boolean,
+    isSuggestingCategories: Boolean,
+    onSuggestCategoriesClick: () -> Unit
+) {
     var menuOpen by remember { mutableStateOf(false) }
 
     IconButton(onClick = { menuOpen = true }) {
         Icon(SolarIcons.MoreVert, contentDescription = "More actions")
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        // Bulk suggestion sits above the destructive item and is separated from it: the two
+        // read similarly in a list ("do something to everything") but only one is irreversible.
+        if (canSuggestCategories) {
+            DropdownMenuItem(
+                text = {
+                    Text(if (isSuggestingCategories) "Suggesting…" else "Suggest missing categories")
+                },
+                enabled = !isSuggestingCategories,
+                leadingIcon = {
+                    Icon(
+                        imageVector = SolarIcons.Science,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.lg)
+                    )
+                },
+                onClick = {
+                    menuOpen = false
+                    onSuggestCategoriesClick()
+                }
+            )
+            HorizontalDivider()
+        }
+
         DropdownMenuItem(
             text = { Text("Dismiss all", color = MaterialTheme.colorScheme.error) },
             leadingIcon = {

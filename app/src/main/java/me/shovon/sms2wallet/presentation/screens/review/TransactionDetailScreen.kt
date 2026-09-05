@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
@@ -119,7 +120,12 @@ fun TransactionDetailScreen(
                 onDirectionChange = viewModel::onDirectionChange,
                 onCategoryChange = viewModel::onCategoryChange,
                 onAccountChange = viewModel::onAccountChange,
-                onNoteChange = viewModel::onNoteChange
+                onNoteChange = viewModel::onNoteChange,
+                onSuggestCategory = if (state.isSuggestionAvailable) {
+                    { viewModel.suggestCategory() }
+                } else {
+                    null
+                }
             )
         }
     }
@@ -267,7 +273,8 @@ private fun AttentionBanner(state: TransactionDetailUiState) {
 private fun ReviewActionBar(isSaving: Boolean, onPush: () -> Unit, onDismiss: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 4.dp
+        shadowElevation = 4.dp,
+        modifier = Modifier.imePadding()
     ) {
         Column(
             modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
