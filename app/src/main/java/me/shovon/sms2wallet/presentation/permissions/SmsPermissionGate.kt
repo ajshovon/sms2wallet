@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -97,6 +99,7 @@ fun SmsPermissionGate(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.xxl, vertical = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -138,7 +141,7 @@ fun SmsPermissionGate(
             // Privacy Assurance Card
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             ) {
                 Column(

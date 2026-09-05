@@ -35,7 +35,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,7 +89,7 @@ fun TransactionCard(
             onClick = { onSelectedChange(!isSelected) },
             isSelected = isSelected,
             leading = {
-                Checkbox(checked = isSelected, onCheckedChange = onSelectedChange)
+                Checkbox(checked = isSelected, onCheckedChange = null)
             }
         )
         return
@@ -246,6 +248,13 @@ private fun TransactionRowContent(
     isSelected: Boolean = false,
     leading: @Composable (() -> Unit)? = null
 ) {
+    val rowDesc = buildString {
+        append("${transaction.merchant}, ${transaction.amount} Taka, ${transaction.sourceSummary}")
+        if (transaction.category != null) append(", ${transaction.category}")
+        if (transaction.accountName != null) append(", to ${transaction.accountName}")
+        if (transaction.needsAttention) append(", needs attention")
+    }
+
     Surface(
         modifier = modifier,
         shape = shape,
@@ -255,7 +264,16 @@ private fun TransactionRowContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
-                .clickable(role = Role.Button, onClick = onClick)
+                .clickable(
+                    role = if (leading != null) Role.Checkbox else Role.Button,
+                    onClick = onClick
+                )
+                .semantics {
+                    contentDescription = rowDesc
+                    if (leading != null) {
+                        selected = isSelected
+                    }
+                }
                 .padding(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md)

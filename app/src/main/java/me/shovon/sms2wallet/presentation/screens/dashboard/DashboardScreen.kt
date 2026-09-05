@@ -263,7 +263,7 @@ private fun DashboardHeroCard(
 
                 val isConnected = state.tokenHealth == TokenHealth.VALID
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = if (isConnected) {
                         Sms2WalletTheme.extendedColors.income.copy(alpha = 0.15f)
                     } else {
@@ -348,7 +348,9 @@ private fun StatCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$label: $value ($badgeText)"
+        },
         shape = MaterialTheme.shapes.large,
         color = groupedSurfaceColor()
     ) {
@@ -580,7 +582,12 @@ private fun QuickToolCard(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 96.dp),
+        modifier = modifier
+            .heightIn(min = 96.dp)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = "$title, $subtitle"
+            },
         shape = MaterialTheme.shapes.large,
         color = groupedSurfaceColor()
     ) {
@@ -633,10 +640,21 @@ private fun TokenHealthRow(tokenHealth: TokenHealth) {
         TokenHealth.UNKNOWN -> Triple(SolarIcons.Error, "Unknown", BadgeIntent.NEUTRAL)
     }
 
+    val healthDesc = when (tokenHealth) {
+        TokenHealth.VALID -> "Wallet API token is active"
+        TokenHealth.EXPIRING_SOON -> "Token will expire soon"
+        TokenHealth.SYNCING -> "Wallet is building initial sync"
+        TokenHealth.INVALID -> "Token was rejected by Wallet"
+        TokenHealth.UNKNOWN -> "Status not checked yet"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = MinTouchTarget)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Token health: $label, $healthDesc"
+            }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
@@ -654,13 +672,7 @@ private fun TokenHealthRow(tokenHealth: TokenHealth) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = when (tokenHealth) {
-                    TokenHealth.VALID -> "Wallet API token is active"
-                    TokenHealth.EXPIRING_SOON -> "Token will expire soon"
-                    TokenHealth.SYNCING -> "Wallet is building initial sync"
-                    TokenHealth.INVALID -> "Token was rejected by Wallet"
-                    TokenHealth.UNKNOWN -> "Status not checked yet"
-                },
+                text = healthDesc,
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = Spacing.xxs)
             )
@@ -675,6 +687,9 @@ private fun InfoRow(icon: ImageVector, title: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = MinTouchTarget)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title: $value"
+            }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
@@ -713,6 +728,9 @@ private fun RateLimitRow(rateLimit: RateLimitUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Wallet API budget: ${rateLimit.used} of ${rateLimit.limit} used, $remaining remaining"
+            }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
@@ -862,18 +880,27 @@ private fun SuggestionPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Surface(
+        onClick = onClick,
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
+            .heightIn(min = 36.dp)
+            .semantics {
+                contentDescription = "Suggestion: $text"
+            },
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

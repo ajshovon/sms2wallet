@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -24,6 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import me.shovon.sms2wallet.presentation.components.GroupedContainer
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
@@ -51,16 +56,24 @@ fun RemindersSection(
             verticalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.small)
+                    .toggleable(
+                        value = state.isEnabled,
+                        role = Role.Switch,
+                        onValueChange = onEnabledChange
+                    )
+                    .padding(vertical = Spacing.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                text = "Daily reminder",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-            )
-                Switch(checked = state.isEnabled, onCheckedChange = onEnabledChange)
+                    text = "Daily reminder",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                )
+                Switch(checked = state.isEnabled, onCheckedChange = null)
             }
 
             HorizontalDivider(
@@ -77,7 +90,13 @@ fun RemindersSection(
                     text = "Remind me at",
                     color = if (state.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = { showTimePicker = true }, enabled = state.isEnabled) {
+                TextButton(
+                    onClick = { showTimePicker = true },
+                    enabled = state.isEnabled,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Reminder time: ${formatTime(state.hourOfDay, state.minute)}"
+                    }
+                ) {
                     Text(formatTime(state.hourOfDay, state.minute))
                 }
             }
@@ -94,18 +113,28 @@ fun RemindersSection(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { onSkipCountChange((state.skipIfAlreadyLoggedCount - 1).coerceAtLeast(0)) },
-                        enabled = state.isEnabled,
+                        enabled = state.isEnabled && state.skipIfAlreadyLoggedCount > 0,
                         modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
-                        Icon(SolarIcons.Remove, contentDescription = "Decrease")
+                        Icon(
+                            imageVector = SolarIcons.Remove,
+                            contentDescription = "Decrease skip threshold, currently ${state.skipIfAlreadyLoggedCount}"
+                        )
                     }
-                    Text(state.skipIfAlreadyLoggedCount.toString(), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = state.skipIfAlreadyLoggedCount.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = Spacing.xs)
+                    )
                     IconButton(
                         onClick = { onSkipCountChange((state.skipIfAlreadyLoggedCount + 1).coerceAtMost(20)) },
-                        enabled = state.isEnabled,
+                        enabled = state.isEnabled && state.skipIfAlreadyLoggedCount < 20,
                         modifier = Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)
                     ) {
-                        Icon(SolarIcons.Add, contentDescription = "Increase")
+                        Icon(
+                            imageVector = SolarIcons.Add,
+                            contentDescription = "Increase skip threshold, currently ${state.skipIfAlreadyLoggedCount}"
+                        )
                     }
                 }
             }

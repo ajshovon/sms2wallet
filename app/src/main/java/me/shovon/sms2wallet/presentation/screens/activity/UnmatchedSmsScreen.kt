@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -96,7 +101,11 @@ fun UnmatchedSmsContent(
                 start = Spacing.lg,
                 end = Spacing.lg,
                 top = Spacing.sm,
-                bottom = Spacing.xxl
+                // These screens carry no bottom bar, so nothing else reserves room for the
+                // gesture rail. A fixed inset is a guess; the real one varies by device and by
+                // whether the user is on gesture or 3-button navigation.
+                bottom = Spacing.xxl +
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             )
         ) {
             item(key = "header") {
@@ -180,10 +189,15 @@ private fun UnmatchedSmsRow(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = {
-                    clipboardManager.setText(AnnotatedString(item.bodyPreview))
-                    Toast.makeText(context, "SMS copied to clipboard", Toast.LENGTH_SHORT).show()
-                }) {
+                TextButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(item.bodyPreview))
+                        Toast.makeText(context, "SMS copied to clipboard", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = "Copy SMS from ${item.sender}"
+                    }
+                ) {
                     Icon(
                         imageVector = SolarIcons.Copy,
                         contentDescription = null,
@@ -193,7 +207,12 @@ private fun UnmatchedSmsRow(
                     Text("Copy")
                 }
 
-                TextButton(onClick = onTestInPlayground) {
+                TextButton(
+                    onClick = onTestInPlayground,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Test SMS from ${item.sender} in playground"
+                    }
+                ) {
                     Icon(
                         imageVector = SolarIcons.Science,
                         contentDescription = null,
@@ -203,7 +222,12 @@ private fun UnmatchedSmsRow(
                     Text("Test")
                 }
 
-                TextButton(onClick = onDismiss) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Dismiss SMS from ${item.sender}"
+                    }
+                ) {
                     Icon(
                         imageVector = SolarIcons.Close,
                         contentDescription = null,

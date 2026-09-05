@@ -3,6 +3,8 @@ package me.shovon.sms2wallet.presentation.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,6 +78,7 @@ fun PickerField(
         errorText = errorText,
         enabled = enabled
     ) {
+        val stateDesc = if (!value.isNullOrBlank()) "Selected: $value" else "Not selected"
         PickerControl(
             value = value,
             options = options,
@@ -84,6 +88,7 @@ fun PickerField(
             enabled = enabled,
             sheetTitle = sheetTitle,
             searchPlaceholder = searchPlaceholder,
+            contentDescription = "$label, $stateDesc",
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -145,7 +150,10 @@ fun PickerControl(
                 role = Role.DropdownList,
                 onClick = { sheetOpen = true }
             )
-            .semantics { if (contentDescription != null) this.contentDescription = contentDescription }
+            .semantics {
+                if (contentDescription != null) this.contentDescription = contentDescription
+                this.stateDescription = if (hasValue) "Selected: $value" else "Not selected"
+            }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
@@ -270,9 +278,13 @@ private fun SelectionRow(label: String, isSelected: Boolean, onClick: () -> Unit
             .fillMaxWidth()
             .heightIn(min = MinTouchTarget)
             .background(
-                if (isSelected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent
+                if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
             )
-            .clickable(role = Role.Button, onClick = onClick)
+            .selectable(
+                selected = isSelected,
+                role = Role.RadioButton,
+                onClick = onClick
+            )
             .padding(horizontal = Spacing.xl, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
@@ -298,7 +310,7 @@ private fun SelectionRow(label: String, isSelected: Boolean, onClick: () -> Unit
         if (isSelected) {
             Icon(
                 imageVector = SolarIcons.Check,
-                contentDescription = "Selected",
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(IconSize.md)
             )

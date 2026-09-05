@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -129,7 +136,11 @@ fun ParserPlaygroundContent(
                 start = Spacing.lg,
                 end = Spacing.lg,
                 top = Spacing.sm,
-                bottom = Spacing.xxl
+                // These screens carry no bottom bar, so nothing else reserves room for the
+                // gesture rail. A fixed inset is a guess; the real one varies by device and by
+                // whether the user is on gesture or 3-button navigation.
+                bottom = Spacing.xxl +
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             )
         ) {
             // Quick sample templates row
@@ -239,23 +250,43 @@ private fun SampleTemplateChip(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .heightIn(min = 36.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Load sample $label"
+            },
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.primary,
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-        )
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
 @Composable
 private fun ParserResultCard(result: ParserMatchResultUiState, index: Int, count: Int) {
+    val cardDesc = if (result.matched) {
+        "${result.providerName} matched, ${result.extractedFields.joinToString { "${it.label}: ${it.value}" }}"
+    } else {
+        "${result.providerName} did not match${result.failureReason?.let { ", reason: $it" } ?: ""}"
+    }
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = cardDesc
+            },
         shape = groupedRowShape(index = index, count = count),
         color = if (result.matched) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)

@@ -2,18 +2,29 @@ package me.shovon.sms2wallet.presentation.screens.addexpense
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
@@ -27,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,10 +62,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -78,6 +93,7 @@ import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.util.MoneyFormatter
+import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -96,12 +112,14 @@ private val QUICK_AMOUNTS = listOf(50, 100, 500, 1000)
 fun AddCashExpenseScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     viewModel: AddCashExpenseViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     AddCashExpenseContent(
         state = state,
+        onOpenSettings = onOpenSettings,
         onBack = onBack,
         onSave = { viewModel.save(onSaved) },
         onAmountChange = viewModel::onAmountChange,
@@ -125,14 +143,17 @@ fun AddCashExpenseContent(
     onAccountChange: (String) -> Unit,
     onMerchantChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var categorySheetOpen by remember { mutableStateOf(false) }
     var accountSheetOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
-    // Auto-focus the hero amount input on launch so the user can start typing instantly
+    // Auto-focus the hero amount input after the entrance transition settles so the soft keyboard
+    // does not collide with the screen transition and trigger window resize jitter.
     LaunchedEffect(Unit) {
+        delay(250)
         focusRequester.requestFocus()
     }
 
@@ -227,7 +248,7 @@ fun AddCashExpenseContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = MaterialTheme.shapes.large,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = buttonColor,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -279,7 +300,8 @@ fun AddCashExpenseContent(
                 categories = state.availableCategories,
                 selectedCategory = state.category,
                 onSelectCategory = onCategoryChange,
-                onOpenAllCategories = { categorySheetOpen = true }
+                onOpenAllCategories = { categorySheetOpen = true },
+                onOpenSettings = onOpenSettings
             )
 
             // 3. QUICK ACCOUNT SELECTOR (ONE-TAP CHIPS)
@@ -288,7 +310,8 @@ fun AddCashExpenseContent(
                 selectedAccount = state.accountName,
                 accountError = state.accountError,
                 onSelectAccount = onAccountChange,
-                onOpenAllAccounts = { accountSheetOpen = true }
+                onOpenAllAccounts = { accountSheetOpen = true },
+                onOpenSettings = onOpenSettings
             )
 
             // 4. MERCHANT & NOTE DETAILS
@@ -307,6 +330,7 @@ fun AddCashExpenseContent(
 /**
  * Centered hero display with huge digits, automatic cursor focus, and quick increment chips.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeroAmountCard(
     amountText: String,
@@ -340,15 +364,20 @@ private fun HeroAmountCard(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                val takaColor by animateColorAsState(
+                    targetValue = if (isIncome) {
+                        Sms2WalletTheme.extendedColors.income
+                    } else {
+                        Sms2WalletTheme.extendedColors.expense
+                    },
+                    label = "taka_symbol_color"
+                )
+
                 Text(
                     text = MoneyFormatter.TAKA_SYMBOL,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isIncome) {
-                        Sms2WalletTheme.extendedColors.income
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
+                    color = takaColor,
                     modifier = Modifier.padding(end = 4.dp)
                 )
 
@@ -377,9 +406,7 @@ private fun HeroAmountCard(
                             textAlign = TextAlign.Center
                         ),
                         singleLine = true,
-                        cursorBrush = SolidColor(
-                            if (isIncome) Sms2WalletTheme.extendedColors.income else MaterialTheme.colorScheme.primary
-                        ),
+                        cursorBrush = SolidColor(takaColor),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Decimal,
                             imeAction = ImeAction.Done
@@ -398,12 +425,14 @@ private fun HeroAmountCard(
             }
 
             // Quick increment chips (+৳50, +৳100, +৳500, +৳1,000, Clear)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+            // Wraps rather than scrolls. A scrolling row centred with
+            // Arrangement.CenterHorizontally hides its overflow on *both* sides once the
+            // content is wider than the screen, which at large font sizes put the first and
+            // last chips off-screen with no affordance saying they were there.
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 QUICK_AMOUNTS.forEach { inc ->
                     Surface(
@@ -417,7 +446,7 @@ private fun HeroAmountCard(
                             }
                             onAmountChange(updated)
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.surface,
                         border = BorderStroke(
                             width = 1.dp,
@@ -441,7 +470,7 @@ private fun HeroAmountCard(
                 if (amountText.isNotEmpty()) {
                     Surface(
                         onClick = { onAmountChange("") },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
                         border = BorderStroke(
                             width = 1.dp,
@@ -486,6 +515,7 @@ private fun QuickCategorySelector(
     selectedCategory: String,
     onSelectCategory: (String) -> Unit,
     onOpenAllCategories: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -526,18 +556,11 @@ private fun QuickCategorySelector(
         }
 
         if (categories.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
-            ) {
-                Text(
-                    text = "Connect Wallet in Settings to sync your categories.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                )
-            }
+            SetupHint(
+                text = "No categories yet. Connect Wallet in Settings to sync them.",
+                actionLabel = "Open Settings",
+                onAction = onOpenSettings
+            )
         } else {
             // Prioritize the currently selected category at the front if not in top list
             val displayCategories = remember(categories, selectedCategory) {
@@ -566,7 +589,7 @@ private fun QuickCategorySelector(
                 if (categories.size > displayCategories.size) {
                     Surface(
                         onClick = onOpenAllCategories,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
                             width = 1.dp,
@@ -607,6 +630,7 @@ private fun QuickAccountSelector(
     accountError: String?,
     onSelectAccount: (String) -> Unit,
     onOpenAllAccounts: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -628,19 +652,14 @@ private fun QuickAccountSelector(
         }
 
         if (accounts.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
-            ) {
-                Text(
-                    text = "No Wallet accounts found. Connect in Settings to add accounts.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                )
-            }
+            // Informational, not an error: the user has not done anything wrong, they simply
+            // have not connected Wallet yet. Error colouring here made a first run look broken,
+            // and red is also the one colour the form needs left free for real validation.
+            SetupHint(
+                text = "No accounts yet. Connect Wallet in Settings to choose where this goes.",
+                actionLabel = "Open Settings",
+                onAction = onOpenSettings
+            )
         } else {
             Row(
                 modifier = Modifier
@@ -660,7 +679,7 @@ private fun QuickAccountSelector(
                 if (accounts.size > 5) {
                     Surface(
                         onClick = onOpenAllAccounts,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
                             width = 1.dp,
@@ -725,7 +744,7 @@ private fun DetailsCard(
                 label = { Text("Merchant / Payee") },
                 placeholder = { Text("e.g. Grocery, Coffee, Uber") },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -741,7 +760,7 @@ private fun DetailsCard(
                 label = { Text("Note") },
                 placeholder = { Text("Optional memo") },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -791,7 +810,7 @@ private fun FilterPill(
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = bg,
         border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, border),
         modifier = modifier.semantics {
@@ -828,7 +847,7 @@ private fun FilterPill(
 }
 
 /**
- * Compact top-bar toggle pill between Expense and Income.
+ * Compact top-bar toggle pill between Expense and Income with fluid spring animation.
  */
 @Composable
 private fun TypeToggle(
@@ -836,57 +855,162 @@ private fun TypeToggle(
     onDirectionChange: (TransactionDirection) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        modifier = modifier.padding(end = Spacing.xs)
+    val haptic = LocalHapticFeedback.current
+    val isExpense = direction == TransactionDirection.EXPENSE
+    val extendedColors = Sms2WalletTheme.extendedColors
+
+    // Smooth physics-based sliding thumb animation
+    val targetFraction = if (isExpense) 0f else 1f
+    val indicatorOffset by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "type_toggle_offset"
+    )
+
+    val thumbTint by animateColorAsState(
+        targetValue = if (isExpense) {
+            extendedColors.expense.copy(alpha = 0.10f)
+        } else {
+            extendedColors.income.copy(alpha = 0.12f)
+        },
+        label = "type_toggle_thumb_tint"
+    )
+
+    val thumbBorder by animateColorAsState(
+        targetValue = if (isExpense) {
+            extendedColors.expense.copy(alpha = 0.28f)
+        } else {
+            extendedColors.income.copy(alpha = 0.28f)
+        },
+        label = "type_toggle_thumb_border"
+    )
+
+    Box(
+        modifier = modifier
+            .padding(end = Spacing.xs)
+            .width(184.dp)
+            .height(38.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                shape = CircleShape
+            )
+            .padding(3.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val isExpense = direction == TransactionDirection.EXPENSE
-            val isIncome = direction == TransactionDirection.INCOME
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val segmentWidth = maxWidth / 2
 
-            // Expense Pill
-            Surface(
-                onClick = { onDirectionChange(TransactionDirection.EXPENSE) },
-                shape = CircleShape,
-                color = if (isExpense) MaterialTheme.colorScheme.errorContainer else Color.Transparent,
-                modifier = Modifier.semantics {
-                    role = Role.RadioButton
-                    this.selected = isExpense
-                    contentDescription = "Select Expense"
-                }
-            ) {
-                Text(
-                    text = "Expense",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isExpense) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = 6.dp)
-                )
-            }
+            // Sliding Elevated Thumb
+            Box(
+                modifier = Modifier
+                    .offset(x = segmentWidth * indicatorOffset)
+                    .width(segmentWidth)
+                    .fillMaxHeight()
+                    .shadow(elevation = 2.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .background(thumbTint)
+                    .border(1.dp, thumbBorder, CircleShape)
+            )
 
-            // Income Pill
-            Surface(
-                onClick = { onDirectionChange(TransactionDirection.INCOME) },
-                shape = CircleShape,
-                color = if (isIncome) Sms2WalletTheme.extendedColors.income.copy(alpha = 0.2f) else Color.Transparent,
-                modifier = Modifier.semantics {
-                    role = Role.RadioButton
-                    this.selected = isIncome
-                    contentDescription = "Select Income"
-                }
-            ) {
-                Text(
-                    text = "Income",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isIncome) Sms2WalletTheme.extendedColors.income else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = 6.dp)
+            // Segments Row
+            Row(modifier = Modifier.fillMaxSize()) {
+                val expenseContentColor by animateColorAsState(
+                    targetValue = if (isExpense) extendedColors.expense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    label = "expense_color"
                 )
+
+                // Expense Segment
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (!isExpense) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onDirectionChange(TransactionDirection.EXPENSE)
+                            }
+                        }
+                        .semantics {
+                            role = Role.RadioButton
+                            this.selected = isExpense
+                            contentDescription = "Switch to Expense"
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = SolarIcons.ArrowUpRight,
+                            contentDescription = null,
+                            tint = expenseContentColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "Expense",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
+                            color = expenseContentColor
+                        )
+                    }
+                }
+
+                val incomeContentColor by animateColorAsState(
+                    targetValue = if (!isExpense) extendedColors.income else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    label = "income_color"
+                )
+
+                // Income Segment
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (isExpense) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onDirectionChange(TransactionDirection.INCOME)
+                            }
+                        }
+                        .semantics {
+                            role = Role.RadioButton
+                            this.selected = !isExpense
+                            contentDescription = "Switch to Income"
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = SolarIcons.ArrowDownLeft,
+                            contentDescription = null,
+                            tint = incomeContentColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "Income",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (!isExpense) FontWeight.Bold else FontWeight.Medium,
+                            color = incomeContentColor
+                        )
+                    }
+                }
             }
         }
     }
@@ -917,3 +1041,55 @@ private fun AddCashExpensePreview() {
     }
 }
 
+@androidx.compose.ui.tooling.preview.Preview(name = "TypeToggle - Light", showBackground = true)
+@androidx.compose.ui.tooling.preview.Preview(name = "TypeToggle - Dark", uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun TypeTogglePreview() {
+    Sms2WalletTheme {
+        var direction by remember { mutableStateOf(TransactionDirection.EXPENSE) }
+        Surface(modifier = Modifier.padding(16.dp)) {
+            TypeToggle(
+                direction = direction,
+                onDirectionChange = { direction = it }
+            )
+        }
+    }
+}
+
+/**
+ * A setup condition the user can act on, shown where a picker's options would be.
+ *
+ * Deliberately not error-coloured: nothing has gone wrong, the app just has nothing to offer
+ * yet. It carries the fix as a button rather than only naming it in prose, so the user does not
+ * have to leave, hunt through Settings and come back to find out which screen was meant.
+ */
+@Composable
+private fun SetupHint(
+    text: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = onAction,
+                contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xxs)
+            ) {
+                Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}

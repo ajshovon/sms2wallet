@@ -38,6 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -336,7 +339,7 @@ private fun PushLogRow(
             // Error callout box for failed pushes
             entry.errorMessage?.let { message ->
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -385,7 +388,12 @@ private fun ActivityMetricItem(
     value: String,
     color: Color
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$label: $value"
+        }
+    ) {
         Text(
             text = value,
             style = MaterialTheme.typography.titleLarge,
