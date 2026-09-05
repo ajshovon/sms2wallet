@@ -56,8 +56,17 @@ class UnmatchedSmsViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
 ) : ViewModel() {
 
+    init {
+        viewModelScope.launch {
+            activityRepository.cleanDuplicates()
+        }
+    }
+
     val uiState: StateFlow<UnmatchedSmsScreenUiState> = activityRepository.observeUnmatchedSms()
-        .map { rows -> UnmatchedSmsScreenUiState(items = rows.map { it.toUiState() }, isLoading = false) }
+        .map { rows ->
+            val distinctRows = rows.distinctBy { "${it.sender.trim()}|${it.body.trim()}" }
+            UnmatchedSmsScreenUiState(items = distinctRows.map { it.toUiState() }, isLoading = false)
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),

@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  * An SMS that no `:bd-sms-parsers` bank parser could handle, kept so the user can review it
  * (and, in future, retry parsing after a parser update).
  *
- * [smsHash] is a hash of `sender|body|timestamp`, unique-indexed so re-scanning the SMS inbox
+ * [smsHash] is a hash of `sender|body`, unique-indexed so re-scanning the SMS inbox
  * does not insert duplicate rows for the same message.
  */
 @Entity(

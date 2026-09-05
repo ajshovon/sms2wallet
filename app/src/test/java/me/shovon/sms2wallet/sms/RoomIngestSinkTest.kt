@@ -262,6 +262,19 @@ class RoomIngestSinkTest {
     }
 
     @Test
+    fun `same unmatched SMS with different timestamps from broadcast and content provider is deduplicated`() = runTest {
+        val unmatchedSmsDao = FakeUnmatchedSmsDao()
+        val ingestSink = sink(unmatchedSmsDao = unmatchedSmsDao)
+        val rawBroadcast = sampleRaw(sender = "01700000001", body = "Synthetic unrecognised SMS body.", timestamp = 1000L)
+        val rawInbox = sampleRaw(sender = "01700000001", body = "Synthetic unrecognised SMS body.", timestamp = 1250L)
+
+        ingestSink.accept(IngestResult.Unmatched("No enabled parser recognises sender"), rawBroadcast)
+        ingestSink.accept(IngestResult.Unmatched("No enabled parser recognises sender"), rawInbox)
+
+        assertEquals(1, unmatchedSmsDao.rows.size)
+    }
+
+    @Test
     fun `ignored result stores nothing`() = runTest {
         val transactionDao = FakeTransactionDao()
         val unmatchedSmsDao = FakeUnmatchedSmsDao()
@@ -491,6 +504,19 @@ private class FakeUnmatchedSmsDao : UnmatchedSmsDao {
     override fun observeAll(): Flow<List<UnmatchedSmsEntity>> = flowOf(rows.toList())
 
     override suspend fun deleteById(id: Long) {
-        rows.removeAll { it.id == id }
+        val target = rows.firstOrNull { it.id == id }
+        if (target != null) {
+            rows.removeAll { it.sender == target.sender && it.body == target.body }
+        } else {
+            rows.removeAll { it.id == id }
+        }
+    }
+
+    override suspend fun deleteDuplicates() {
+        val keep = rows.groupBy { "${it.sender.trim()}|${it.body.trim()}" }
+            .values
+            .mapNotNull { it.maxByOrNull { row -> row.id }?.id }
+            .toSet()
+        rows.removeAll { it.id !in keep }
     }
 }

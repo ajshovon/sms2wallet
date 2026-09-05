@@ -18,9 +18,37 @@ interface UnmatchedSmsDao {
     @Delete
     suspend fun delete(sms: UnmatchedSmsEntity)
 
-    @Query("SELECT * FROM unmatched_sms ORDER BY timestamp DESC")
+    @Query(
+        """
+        SELECT * FROM unmatched_sms
+        WHERE id IN (
+            SELECT MAX(id) FROM unmatched_sms
+            GROUP BY sender, body
+        )
+        ORDER BY timestamp DESC
+        """
+    )
     fun observeAll(): Flow<List<UnmatchedSmsEntity>>
 
-    @Query("DELETE FROM unmatched_sms WHERE id = :id")
+    @Query(
+        """
+        DELETE FROM unmatched_sms
+        WHERE id = :id OR (
+            sender = (SELECT sender FROM unmatched_sms WHERE id = :id) AND
+            body = (SELECT body FROM unmatched_sms WHERE id = :id)
+        )
+        """
+    )
     suspend fun deleteById(id: Long)
+
+    @Query(
+        """
+        DELETE FROM unmatched_sms
+        WHERE id NOT IN (
+            SELECT MAX(id) FROM unmatched_sms
+            GROUP BY sender, body
+        )
+        """
+    )
+    suspend fun deleteDuplicates()
 }

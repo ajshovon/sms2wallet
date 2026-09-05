@@ -233,9 +233,9 @@ class RoomIngestSink(
         )
     }
 
-    /** Stable hash of sender+body+timestamp, matching [UnmatchedSmsEntity.smsHash]'s contract. */
+    /** Stable hash of sender+body, matching [UnmatchedSmsEntity.smsHash]'s contract. */
     private fun hashSms(raw: RawSms): String {
-        val data = "${raw.sender}|${raw.body}|${raw.timestamp}"
+        val data = "${raw.sender.trim()}|${raw.body.trim()}"
         return MessageDigest.getInstance("SHA-256")
             .digest(data.toByteArray())
             .joinToString("") { String.format(Locale.ROOT, "%02x", it) }
