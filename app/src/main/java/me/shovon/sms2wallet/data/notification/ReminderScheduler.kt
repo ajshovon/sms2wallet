@@ -19,7 +19,16 @@ import javax.inject.Singleton
 class ReminderScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    fun schedule(hour: Int, minute: Int) {
+    /**
+     * @param policy [ExistingPeriodicWorkPolicy.UPDATE] when the user just changed the setting,
+     *   [ExistingPeriodicWorkPolicy.KEEP] for the start-up bootstrap, which must not push an
+     *   already-scheduled reminder forward every time the app is opened.
+     */
+    fun schedule(
+        hour: Int,
+        minute: Int,
+        policy: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.UPDATE,
+    ) {
         val now = LocalDateTime.now()
         var targetTime = now.with(LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))).withSecond(0).withNano(0)
         if (targetTime.isBefore(now)) {
@@ -32,11 +41,7 @@ class ReminderScheduler @Inject constructor(
             .build()
 
         WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(
-                DailyReminderWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                request
-            )
+            .enqueueUniquePeriodicWork(DailyReminderWorker.WORK_NAME, policy, request)
     }
 
     fun cancel() {
