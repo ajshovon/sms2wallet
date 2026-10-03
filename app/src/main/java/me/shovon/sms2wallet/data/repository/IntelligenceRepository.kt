@@ -58,8 +58,8 @@ class IntelligenceRepository @Inject constructor(
 
     suspend fun setDefaultAccountId(accountId: String?) = appPreferences.setDefaultAccountId(accountId)
 
-    /** @return null when the stored key and model check out, otherwise a message for the user. */
-    suspend fun verifyApiKey(): String? = parser.verify(settings.first().model)
+    /** @return null when the stored key (or candidateKey) and model check out, otherwise a message for the user. */
+    suspend fun verifyApiKey(candidateKey: String? = null): String? = parser.verify(settings.first().model, candidateKey)
 
     /**
      * Parses [input] into a prefill for the add screen.

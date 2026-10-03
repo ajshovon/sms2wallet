@@ -167,12 +167,12 @@ class KtorWalletApiClient(
         }
     }
 
-    override suspend fun validateToken(): ApiResult<Unit> {
-        val token = tokenProvider() ?: return ApiResult.Unauthorized
+    override suspend fun validateToken(token: String?): ApiResult<Unit> {
+        val effectiveToken = token ?: tokenProvider() ?: return ApiResult.Unauthorized
 
         val outcome = executeRaw {
             httpClient.get("$baseUrl/accounts") {
-                applyAuth(token)
+                applyAuth(effectiveToken)
                 parameter("limit", 1)
             }
         }

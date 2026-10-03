@@ -40,11 +40,11 @@ interface NaturalLanguageParser {
     ): CategorySuggestionResult
 
     /**
-     * Checks the stored key and [model] without generating anything.
+     * Checks the stored key (or [candidateKey] if provided) and [model] without generating anything.
      *
      * @return null when both are usable, otherwise a message to show the user.
      */
-    suspend fun verify(model: String): String?
+    suspend fun verify(model: String, candidateKey: String? = null): String?
 }
 
 /**

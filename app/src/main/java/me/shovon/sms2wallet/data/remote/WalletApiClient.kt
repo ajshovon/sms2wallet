@@ -49,8 +49,8 @@ interface WalletApiClient {
         source: String? = null,
     ): ApiResult<List<RecordDto>>
 
-    /** Cheap call (`GET /accounts?limit=1`) to check whether the configured token is valid. */
-    suspend fun validateToken(): ApiResult<Unit>
+    /** Cheap call (`GET /accounts?limit=1`) to check whether the configured token (or candidate [token]) is valid. */
+    suspend fun validateToken(token: String? = null): ApiResult<Unit>
 
     /** Latest known rate-limit usage for the configured token. See [UsageStatsDto]. */
     suspend fun usageStats(): ApiResult<UsageStatsDto>

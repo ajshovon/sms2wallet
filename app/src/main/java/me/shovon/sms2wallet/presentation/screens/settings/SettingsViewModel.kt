@@ -194,14 +194,18 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    /** Saves the typed key (if any), then checks it and the selected model against Google. */
+    /** Checks the typed key (or stored key) and the selected model against Google, saving only on success. */
     fun testGeminiKey() {
         viewModelScope.launch {
             val typed = intelligenceState.value.apiKeyInput.trim()
-            if (typed.isNotEmpty()) intelligenceRepository.saveApiKey(typed)
-
+            val candidateKey = typed.ifBlank { null }
             intelligenceState.value = intelligenceState.value.copy(isTesting = true)
-            val error = intelligenceRepository.verifyApiKey()
+            val error = intelligenceRepository.verifyApiKey(candidateKey)
+
+            if (error == null && typed.isNotEmpty()) {
+                intelligenceRepository.saveApiKey(typed)
+            }
+
             intelligenceState.value = intelligenceState.value.copy(
                 isTesting = false,
                 // Clear the field once it is stored, so a working key is never left sitting
@@ -301,17 +305,15 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Saves the typed token (if any) and makes a real `validateToken` call against the Wallet API.
+     * Validates the typed token (or currently stored token) against the Wallet API, saving only on success.
      */
     fun testConnection() {
         viewModelScope.launch {
             val typed = connectionState.value.tokenInput.trim()
+            val candidateToken = typed.ifBlank { null }
             connectionState.value = connectionState.value.copy(isTesting = true)
 
-            // An empty field means "test the token already stored"; anything typed replaces it.
-            if (typed.isNotBlank()) settingsRepository.saveToken(typed)
-
-            val status = when (val result = walletApiClient.validateToken()) {
+            val status = when (val result = walletApiClient.validateToken(candidateToken)) {
                 is ApiResult.Success -> ConnectionStatus.Success
                 is ApiResult.Unauthorized -> ConnectionStatus.Failed("Wallet rejected this token (401 Unauthorized)")
                 is ApiResult.SyncInProgress ->
@@ -321,6 +323,10 @@ class SettingsViewModel @Inject constructor(
                 is ApiResult.HttpError -> ConnectionStatus.Failed("Wallet API error ${result.status}: ${result.message.orEmpty()}")
                 is ApiResult.NetworkError -> ConnectionStatus.Failed("Network error: ${result.message.orEmpty()}")
                 is ApiResult.InvalidRequest -> ConnectionStatus.Failed(result.message)
+            }
+
+            if (status is ConnectionStatus.Success && typed.isNotBlank()) {
+                settingsRepository.saveToken(typed)
             }
 
             connectionState.value = connectionState.value.copy(isTesting = false, status = status)

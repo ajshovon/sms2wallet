@@ -283,8 +283,8 @@ class GeminiNaturalLanguageParser(
         putJsonArray("required") { add(JsonPrimitive("assignments")) }
     }
 
-    override suspend fun verify(model: String): String? {
-        val apiKey = apiKeyProvider() ?: return "Enter an API key first."
+    override suspend fun verify(model: String, candidateKey: String?): String? {
+        val apiKey = candidateKey ?: apiKeyProvider() ?: return "Enter an API key first."
 
         // GET the model rather than generating: it proves the key works and that this account
         // can reach this model, without spending a generation or sending any user data.

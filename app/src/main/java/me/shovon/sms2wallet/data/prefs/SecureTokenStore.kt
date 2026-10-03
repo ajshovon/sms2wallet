@@ -11,11 +11,9 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.GeneralSecurityException
 import java.security.KeyStore
-import javax.crypto.AEADBadTagException
-import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
-import javax.crypto.IllegalBlockSizeException
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
@@ -120,14 +118,14 @@ class SecureTokenStore(
             String(cipher.doFinal(ciphertext), Charsets.UTF_8)
         } catch (e: KeyPermanentlyInvalidatedException) {
             clearAndReturnNull(key)
-        } catch (e: AEADBadTagException) {
-            clearAndReturnNull(key)
-        } catch (e: BadPaddingException) {
-            clearAndReturnNull(key)
-        } catch (e: IllegalBlockSizeException) {
-            clearAndReturnNull(key)
+        } catch (e: GeneralSecurityException) {
+            // Transient Keystore or decryption error. Do NOT wipe the stored credentials,
+            // as temporary keystore glitches or service restarts should not delete user data.
+            null
         } catch (e: IllegalArgumentException) {
             clearAndReturnNull(key)
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -136,10 +134,14 @@ class SecureTokenStore(
         return null
     }
 
+    private val keyLock = Any()
+
     /** Loads the AndroidKeyStore AES key for [KEY_ALIAS], generating it on first use. */
-    private fun getOrCreateKey(): SecretKey {
+    private fun getOrCreateKey(): SecretKey = synchronized(keyLock) {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        if (keyStore.containsAlias(KEY_ALIAS)) {
+            (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        }
 
         val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         val spec = KeyGenParameterSpec.Builder(
