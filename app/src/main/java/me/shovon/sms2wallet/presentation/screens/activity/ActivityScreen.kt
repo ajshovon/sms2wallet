@@ -63,13 +63,53 @@ import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.Spacing
 
-private enum class ActivityFilter {
-    ALL, SUCCESS, FAILED
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import me.shovon.sms2wallet.presentation.util.TimeFormatter
+
+enum class ActivityDateFilter(val label: String) {
+    ALL("All"),
+    TODAY("Today"),
+    YESTERDAY("Yesterday"),
+    THIS_WEEK("This Week"),
+    OLDER("Older")
+}
+
+private enum class ActivityStatusFilter(val label: String) {
+    ALL("All Status"),
+    SUCCESS("Pushed"),
+    FAILED("Failed")
+}
+
+internal fun matchesDateFilter(
+    entry: PushLogEntryUiState,
+    filter: ActivityDateFilter,
+    zone: ZoneId = ZoneId.systemDefault()
+): Boolean {
+    if (filter == ActivityDateFilter.ALL) return true
+    val today = LocalDate.now(zone)
+    val entryDate = when {
+        entry.dayLabel.equals("Today", ignoreCase = true) -> today
+        entry.dayLabel.equals("Yesterday", ignoreCase = true) -> today.minusDays(1)
+        entry.timestamp > 0L -> Instant.ofEpochMilli(entry.timestamp).atZone(zone).toLocalDate()
+        entry.dateTimeLabel.startsWith("Today", ignoreCase = true) -> today
+        entry.dateTimeLabel.startsWith("Yesterday", ignoreCase = true) -> today.minusDays(1)
+        else -> null
+    }
+
+    return when (filter) {
+        ActivityDateFilter.ALL -> true
+        ActivityDateFilter.TODAY -> entryDate == today
+        ActivityDateFilter.YESTERDAY -> entryDate == today.minusDays(1)
+        ActivityDateFilter.THIS_WEEK -> entryDate != null && !entryDate.isBefore(today.minusDays(6)) && !entryDate.isAfter(today)
+        ActivityDateFilter.OLDER -> entryDate == null || entryDate.isBefore(today.minusDays(6))
+    }
 }
 
 /**
  * Activity tab: the push log (what was sent to Wallet, when, and whether it succeeded), with a
- * retry affordance for failures, status filtering, and a link to the "Unmatched SMS" sub-screen.
+ * retry affordance for failures, date & status filtering, day-grouping, and a link to the "Unmatched SMS" sub-screen.
  */
 @Composable
 fun ActivityContent(
@@ -77,18 +117,49 @@ fun ActivityContent(
     onOpenUnmatchedSms: () -> Unit,
     onRetry: (Long) -> Unit
 ) {
-    var selectedFilter by remember { mutableStateOf(ActivityFilter.ALL) }
+    var selectedDateFilter by remember { mutableStateOf(ActivityDateFilter.ALL) }
+    var selectedStatusFilter by remember { mutableStateOf(ActivityStatusFilter.ALL) }
+    val zone = remember { ZoneId.systemDefault() }
 
-    val filteredLogs = remember(state.logs, selectedFilter) {
-        when (selectedFilter) {
-            ActivityFilter.ALL -> state.logs
-            ActivityFilter.SUCCESS -> state.logs.filter { it.status == PushLogStatus.SUCCESS }
-            ActivityFilter.FAILED -> state.logs.filter { it.status == PushLogStatus.FAILED }
+    val todayCount = remember(state.logs, zone) {
+        state.logs.count { matchesDateFilter(it, ActivityDateFilter.TODAY, zone) }
+    }
+    val yesterdayCount = remember(state.logs, zone) {
+        state.logs.count { matchesDateFilter(it, ActivityDateFilter.YESTERDAY, zone) }
+    }
+    val thisWeekCount = remember(state.logs, zone) {
+        state.logs.count { matchesDateFilter(it, ActivityDateFilter.THIS_WEEK, zone) }
+    }
+    val olderCount = remember(state.logs, zone) {
+        state.logs.count { matchesDateFilter(it, ActivityDateFilter.OLDER, zone) }
+    }
+
+    val logsForDate = remember(state.logs, selectedDateFilter, zone) {
+        state.logs.filter { matchesDateFilter(it, selectedDateFilter, zone) }
+    }
+
+    val filteredLogs = remember(logsForDate, selectedStatusFilter) {
+        when (selectedStatusFilter) {
+            ActivityStatusFilter.ALL -> logsForDate
+            ActivityStatusFilter.SUCCESS -> logsForDate.filter { it.status == PushLogStatus.SUCCESS }
+            ActivityStatusFilter.FAILED -> logsForDate.filter { it.status == PushLogStatus.FAILED }
         }
     }
 
-    val successCount = remember(state.logs) { state.logs.count { it.status == PushLogStatus.SUCCESS } }
-    val failedCount = remember(state.logs) { state.logs.count { it.status == PushLogStatus.FAILED } }
+    val dateSuccessCount = remember(logsForDate) { logsForDate.count { it.status == PushLogStatus.SUCCESS } }
+    val dateFailedCount = remember(logsForDate) { logsForDate.count { it.status == PushLogStatus.FAILED } }
+
+    val dayGroups = remember(filteredLogs, zone) {
+        filteredLogs.groupByTo(LinkedHashMap()) { entry ->
+            if (entry.dayLabel.isNotEmpty()) {
+                entry.dayLabel
+            } else if (entry.timestamp > 0L) {
+                TimeFormatter.dayLabel(entry.timestamp, zone)
+            } else {
+                "Earlier"
+            }
+        }
+    }
 
     Sms2WalletScaffold(
         title = "Activity",
@@ -141,8 +212,8 @@ fun ActivityContent(
         ) {
             // Overview metrics bar
             item(key = "metrics-summary") {
-                val rate = if (state.logs.isNotEmpty()) {
-                    ((successCount.toFloat() / state.logs.size) * 100).toInt()
+                val rate = if (logsForDate.isNotEmpty()) {
+                    ((dateSuccessCount.toFloat() / logsForDate.size) * 100).toInt()
                 } else 100
 
                 Surface(
@@ -172,7 +243,7 @@ fun ActivityContent(
                         )
                         ActivityMetricItem(
                             label = "Pushed",
-                            value = successCount.toString(),
+                            value = dateSuccessCount.toString(),
                             color = Sms2WalletTheme.extendedColors.income
                         )
                         Box(
@@ -183,15 +254,41 @@ fun ActivityContent(
                         )
                         ActivityMetricItem(
                             label = "Failed",
-                            value = failedCount.toString(),
-                            color = if (failedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            value = dateFailedCount.toString(),
+                            color = if (dateFailedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Date filter chips
+            item(key = "date-filters") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(bottom = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    ActivityDateFilter.entries.forEach { dateFilter ->
+                        val count = when (dateFilter) {
+                            ActivityDateFilter.ALL -> state.logs.size
+                            ActivityDateFilter.TODAY -> todayCount
+                            ActivityDateFilter.YESTERDAY -> yesterdayCount
+                            ActivityDateFilter.THIS_WEEK -> thisWeekCount
+                            ActivityDateFilter.OLDER -> olderCount
+                        }
+                        FilterChip(
+                            selected = selectedDateFilter == dateFilter,
+                            onClick = { selectedDateFilter = dateFilter },
+                            label = { Text("${dateFilter.label} ($count)") }
                         )
                     }
                 }
             }
 
             // Status filter chips
-            item(key = "filters") {
+            item(key = "status-filters") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -200,23 +297,23 @@ fun ActivityContent(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) {
                     FilterChip(
-                        selected = selectedFilter == ActivityFilter.ALL,
-                        onClick = { selectedFilter = ActivityFilter.ALL },
-                        label = { Text("All (${state.logs.size})") }
+                        selected = selectedStatusFilter == ActivityStatusFilter.ALL,
+                        onClick = { selectedStatusFilter = ActivityStatusFilter.ALL },
+                        label = { Text("All Status (${logsForDate.size})") }
                     )
                     FilterChip(
-                        selected = selectedFilter == ActivityFilter.SUCCESS,
-                        onClick = { selectedFilter = ActivityFilter.SUCCESS },
-                        label = { Text("Pushed ($successCount)") },
+                        selected = selectedStatusFilter == ActivityStatusFilter.SUCCESS,
+                        onClick = { selectedStatusFilter = ActivityStatusFilter.SUCCESS },
+                        label = { Text("Pushed ($dateSuccessCount)") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Sms2WalletTheme.extendedColors.income.copy(alpha = 0.2f),
                             selectedLabelColor = Sms2WalletTheme.extendedColors.income
                         )
                     )
                     FilterChip(
-                        selected = selectedFilter == ActivityFilter.FAILED,
-                        onClick = { selectedFilter = ActivityFilter.FAILED },
-                        label = { Text("Failed ($failedCount)") },
+                        selected = selectedStatusFilter == ActivityStatusFilter.FAILED,
+                        onClick = { selectedStatusFilter = ActivityStatusFilter.FAILED },
+                        label = { Text("Failed ($dateFailedCount)") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
@@ -227,24 +324,43 @@ fun ActivityContent(
 
             if (filteredLogs.isEmpty()) {
                 item(key = "empty-filter") {
+                    val emptyMessage = when {
+                        selectedStatusFilter != ActivityStatusFilter.ALL && selectedDateFilter != ActivityDateFilter.ALL ->
+                            "No ${selectedStatusFilter.label.lowercase()} logs for ${selectedDateFilter.label.lowercase()}."
+                        selectedDateFilter != ActivityDateFilter.ALL ->
+                            "No logs for ${selectedDateFilter.label.lowercase()}."
+                        else ->
+                            "No ${selectedStatusFilter.label.lowercase()} logs."
+                    }
                     EmptyState(
                         icon = SolarIcons.CheckCircle,
-                        title = "No ${selectedFilter.name.lowercase()} logs",
-                        description = "Everything matches your clean filter.",
+                        title = "No matching logs",
+                        description = emptyMessage,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = Spacing.xxl)
                     )
                 }
             } else {
-                itemsIndexed(filteredLogs, key = { _, entry -> entry.id }) { index, entry ->
-                    if (index > 0) GroupedRowDivider()
-                    PushLogRow(
-                        entry = entry,
-                        index = index,
-                        count = filteredLogs.size,
-                        onRetry = { entry.transactionId?.let(onRetry) }
-                    )
+                dayGroups.forEach { (dayLabel, groupEntries) ->
+                    item(key = "header-$dayLabel") {
+                        SectionHeader(
+                            title = dayLabel,
+                            modifier = Modifier.padding(top = Spacing.md)
+                        )
+                    }
+                    itemsIndexed(
+                        items = groupEntries,
+                        key = { _, entry -> entry.id }
+                    ) { index, entry ->
+                        if (index > 0) GroupedRowDivider()
+                        PushLogRow(
+                            entry = entry,
+                            index = index,
+                            count = groupEntries.size,
+                            onRetry = { entry.transactionId?.let(onRetry) }
+                        )
+                    }
                 }
             }
         }
@@ -321,8 +437,11 @@ private fun PushLogRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    val displayDateTime = entry.dateTimeLabel.ifEmpty {
+                        if (entry.timestamp > 0L) TimeFormatter.dayAndTimeLabel(entry.timestamp) else entry.timeLabel
+                    }
                     Text(
-                        text = "$statusLabel • ${entry.timeLabel}",
+                        text = "$statusLabel • $displayDateTime",
                         style = MaterialTheme.typography.bodySmall,
                         color = statusColor,
                         modifier = Modifier.padding(top = Spacing.xxs)

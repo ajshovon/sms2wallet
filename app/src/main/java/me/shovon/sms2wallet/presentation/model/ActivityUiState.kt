@@ -25,6 +25,9 @@ data class PushLogEntryUiState(
     val direction: TransactionDirection,
     val status: PushLogStatus,
     val timeLabel: String,
+    val dateTimeLabel: String = timeLabel,
+    val dayLabel: String = "",
+    val timestamp: Long = 0L,
     val errorMessage: String? = null
 ) {
     val isRetryable: Boolean get() = status == PushLogStatus.FAILED && transactionId != null

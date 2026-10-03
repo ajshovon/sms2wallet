@@ -107,6 +107,9 @@ fun PushLogWithTransaction.toUiState(): PushLogEntryUiState {
         direction = directionFromTypeName(type),
         status = status,
         timeLabel = TimeFormatter.timeLabel(createdAt),
+        dateTimeLabel = TimeFormatter.dayAndTimeLabel(createdAt),
+        dayLabel = TimeFormatter.dayLabel(createdAt),
+        timestamp = createdAt,
         errorMessage = message?.takeIf { status == PushLogStatus.FAILED },
     )
 }

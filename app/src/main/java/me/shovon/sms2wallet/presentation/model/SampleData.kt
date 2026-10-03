@@ -153,6 +153,12 @@ object SampleData {
                 sourceLabel = "Nagad •••• 1234",
                 mappedWalletAccountName = null,
                 availableWalletAccountNames = listOf("Cash Wallet", "bKash Wallet", "City Bank Account")
+            ),
+            AccountMappingRowUiState(
+                sourceId = "src-mtb",
+                sourceLabel = "MTB •••• 5678",
+                mappedWalletAccountName = null,
+                availableWalletAccountNames = listOf("Cash Wallet", "bKash Wallet", "City Bank Account")
             )
         ),
         reminders = ReminderSettingsUiState(
@@ -171,7 +177,10 @@ object SampleData {
                 amount = BigDecimal("650.00"),
                 direction = TransactionDirection.EXPENSE,
                 status = PushLogStatus.SUCCESS,
-                timeLabel = "10:25 AM"
+                timeLabel = "10:25 AM",
+                dateTimeLabel = "Today, 10:25 AM",
+                dayLabel = "Today",
+                timestamp = System.currentTimeMillis()
             ),
             PushLogEntryUiState(
                 id = "log-2",
@@ -180,6 +189,9 @@ object SampleData {
                 direction = TransactionDirection.EXPENSE,
                 status = PushLogStatus.FAILED,
                 timeLabel = "9:05 AM",
+                dateTimeLabel = "Yesterday, 9:05 AM",
+                dayLabel = "Yesterday",
+                timestamp = System.currentTimeMillis() - 86_400_000L,
                 errorMessage = "Wallet API returned 401 Unauthorized"
             ),
             PushLogEntryUiState(
@@ -188,7 +200,10 @@ object SampleData {
                 amount = BigDecimal("45000.00"),
                 direction = TransactionDirection.INCOME,
                 status = PushLogStatus.RETRYING,
-                timeLabel = "8:01 AM"
+                timeLabel = "8:01 AM",
+                dateTimeLabel = "Yesterday, 8:01 AM",
+                dayLabel = "Yesterday",
+                timestamp = System.currentTimeMillis() - 86_400_000L
             )
         )
     )

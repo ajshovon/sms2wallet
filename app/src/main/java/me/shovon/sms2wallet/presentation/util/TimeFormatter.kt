@@ -17,25 +17,34 @@ object TimeFormatter {
 
     private val timeOfDay: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     private val dayAndMonth: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())
+    private val dayMonthYear: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.getDefault())
 
     /** "Today" / "Yesterday" / "Mon, 12 Aug" - the Review-queue day-group header. */
     fun dayLabel(timestampMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (timestampMillis <= 0L) return ""
         val date = Instant.ofEpochMilli(timestampMillis).atZone(zone).toLocalDate()
         val today = LocalDate.now(zone)
-        return when (date) {
-            today -> "Today"
-            today.minusDays(1) -> "Yesterday"
-            else -> date.format(dayAndMonth)
+        return when {
+            date == today -> "Today"
+            date == today.minusDays(1) -> "Yesterday"
+            date.year == today.year -> date.format(dayAndMonth)
+            else -> date.format(dayMonthYear)
         }
     }
 
     /** "10:24 AM". */
-    fun timeLabel(timestampMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        Instant.ofEpochMilli(timestampMillis).atZone(zone).format(timeOfDay)
+    fun timeLabel(timestampMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (timestampMillis <= 0L) return ""
+        return Instant.ofEpochMilli(timestampMillis).atZone(zone).format(timeOfDay)
+    }
 
     /** "Today, 11:02 AM" - used where a row is not already under a day header. */
-    fun dayAndTimeLabel(timestampMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        "${dayLabel(timestampMillis, zone)}, ${timeLabel(timestampMillis, zone)}"
+    fun dayAndTimeLabel(timestampMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (timestampMillis <= 0L) return ""
+        val day = dayLabel(timestampMillis, zone)
+        val time = timeLabel(timestampMillis, zone)
+        return if (day.isNotEmpty() && time.isNotEmpty()) "$day, $time" else day.ifEmpty { time }
+    }
 
     /**
      * Coarse relative label for "last sync": "just now", "2 minutes ago", "3 hours ago",
