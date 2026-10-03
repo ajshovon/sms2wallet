@@ -287,7 +287,7 @@ private class FakeWalletApi(
     override suspend fun listAccounts() = ApiResult.Success(emptyList<me.shovon.sms2wallet.data.remote.dto.WalletAccountDto>(), null)
     override suspend fun listCategories() = ApiResult.Success(emptyList<me.shovon.sms2wallet.data.remote.dto.WalletCategoryDto>(), null)
     override suspend fun findRecords(accountId: String, dayIso: String, amount: String, source: String?) = findResult
-    override suspend fun validateToken() = ApiResult.Success(Unit, null)
+    override suspend fun validateToken(token: String?) = ApiResult.Success(Unit, null)
     override suspend fun usageStats() = ApiResult.Success(me.shovon.sms2wallet.data.remote.dto.UsageStatsDto(), null)
 }
 
@@ -371,5 +371,64 @@ class TransactionReconcilerTest {
         assertFalse(reconciler.reconcile())
         // Still unknown: moving it either way here is exactly how a duplicate gets created.
         assertEquals(PushState.NEEDS_VERIFY.name, dao.rows.getValue(1).pushState)
+    }
+
+    @Test
+    fun `a record already claimed by another transaction is not adopted and row is requeued`() = runTest {
+        val alreadyPushed = sendingRow(1, PushState.PUSHED).copy(walletRecordId = "existing-rec-1")
+        val needsVerify = sendingRow(2, PushState.NEEDS_VERIFY)
+        val dao = FakeTransactionDao(listOf(alreadyPushed, needsVerify))
+        val api = FakeWalletApi(
+            ApiResult.Success(CreateRecordsResponse(), null),
+            findResult = ApiResult.Success(
+                listOf(
+                    me.shovon.sms2wallet.data.remote.dto.RecordDto(
+                        id = "existing-rec-1",
+                        accountId = "acc-1",
+                        amount = me.shovon.sms2wallet.data.remote.dto.RecordAmount(-500.0),
+                        recordDate = "2025-10-09",
+                    )
+                ),
+                null,
+            ),
+        )
+        val reconciler = me.shovon.sms2wallet.data.push.TransactionReconciler(dao, FakePushLogDao(), api)
+
+        assertTrue(reconciler.reconcile())
+        // Row 2 should be requeued because existing-rec-1 belongs to row 1, so row 2 was never recorded.
+        assertEquals(PushState.QUEUED.name, dao.rows.getValue(2).pushState)
+    }
+
+    @Test
+    fun `an unclaimed record is adopted when another record with same amount is already claimed`() = runTest {
+        val alreadyPushed = sendingRow(1, PushState.PUSHED).copy(walletRecordId = "rec-1")
+        val needsVerify = sendingRow(2, PushState.NEEDS_VERIFY)
+        val dao = FakeTransactionDao(listOf(alreadyPushed, needsVerify))
+        val api = FakeWalletApi(
+            ApiResult.Success(CreateRecordsResponse(), null),
+            findResult = ApiResult.Success(
+                listOf(
+                    me.shovon.sms2wallet.data.remote.dto.RecordDto(
+                        id = "rec-1",
+                        accountId = "acc-1",
+                        amount = me.shovon.sms2wallet.data.remote.dto.RecordAmount(-500.0),
+                        recordDate = "2025-10-09",
+                    ),
+                    me.shovon.sms2wallet.data.remote.dto.RecordDto(
+                        id = "rec-2",
+                        accountId = "acc-1",
+                        amount = me.shovon.sms2wallet.data.remote.dto.RecordAmount(-500.0),
+                        recordDate = "2025-10-09",
+                    )
+                ),
+                null,
+            ),
+        )
+        val reconciler = me.shovon.sms2wallet.data.push.TransactionReconciler(dao, FakePushLogDao(), api)
+
+        assertFalse(reconciler.reconcile())
+        // Row 2 adopts unclaimed rec-2
+        assertEquals(PushState.PUSHED.name, dao.rows.getValue(2).pushState)
+        assertEquals("rec-2", dao.rows.getValue(2).walletRecordId)
     }
 }

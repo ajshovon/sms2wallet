@@ -68,6 +68,31 @@ class FakeTransactionDao(claimed: List<TransactionEntity>) : TransactionDao {
         failedPermanent: PushState,
         needsVerify: PushState,
     ): Flow<List<TransactionEntity>> = flowOf(emptyList())
+
+    override fun observeReviewQueueCount(
+        parsed: PushState,
+        failedRetryable: PushState,
+        failedPermanent: PushState,
+        needsVerify: PushState,
+    ): Flow<Int> = flowOf(rows.values.count {
+        it.pushState in setOf(parsed.name, failedRetryable.name, failedPermanent.name, needsVerify.name)
+    })
+
+    override suspend fun updateCategoryIfReviewable(
+        id: Long,
+        categoryId: String,
+        now: Long,
+        parsed: PushState,
+        failedRetryable: PushState,
+        failedPermanent: PushState,
+        needsVerify: PushState,
+    ): Int {
+        val row = rows[id] ?: return 0
+        val reviewable = setOf(parsed.name, failedRetryable.name, failedPermanent.name, needsVerify.name)
+        if (row.pushState !in reviewable) return 0
+        rows[id] = row.copy(walletCategoryId = categoryId, updatedAt = now)
+        return 1
+    }
     override suspend fun markSending(ids: List<Long>, now: Long, sending: PushState, queued: PushState): Int = 0
     override suspend fun findSendingByIds(ids: List<Long>, now: Long, sending: PushState): List<TransactionEntity> =
         emptyList()
@@ -94,6 +119,12 @@ class FakeTransactionDao(claimed: List<TransactionEntity>) : TransactionDao {
         failedPermanent: PushState,
         needsVerify: PushState,
     ): Int = 0
+
+    override suspend fun findClaimedWalletRecordIdsByOthers(recordIds: List<String>, excludeId: Long): List<String> =
+        rows.values.filter { it.id != excludeId && it.walletRecordId in recordIds }.mapNotNull { it.walletRecordId }
+
+    override suspend fun findByWalletRecordId(walletRecordId: String): TransactionEntity? =
+        rows.values.firstOrNull { it.walletRecordId == walletRecordId }
 }
 
 /** Captures the audit rows the Activity tab reads. */

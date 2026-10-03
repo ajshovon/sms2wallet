@@ -297,4 +297,20 @@ interface TransactionDao {
         queued: PushState = PushState.QUEUED,
         sending: PushState = PushState.SENDING
     ): Flow<Int>
+
+    /**
+     * Finds which of the given [recordIds] are already associated with another local transaction.
+     * Used by [TransactionReconciler] to prevent multiple transactions of the same amount on the
+     * same day from adopting the same server record.
+     */
+    @Query(
+        """
+        SELECT wallet_record_id FROM transactions
+        WHERE wallet_record_id IN (:recordIds) AND id != :excludeId
+        """
+    )
+    suspend fun findClaimedWalletRecordIdsByOthers(recordIds: List<String>, excludeId: Long): List<String>
+
+    @Query("SELECT * FROM transactions WHERE wallet_record_id = :walletRecordId LIMIT 1")
+    suspend fun findByWalletRecordId(walletRecordId: String): TransactionEntity?
 }

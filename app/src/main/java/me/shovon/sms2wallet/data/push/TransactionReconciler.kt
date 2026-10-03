@@ -67,7 +67,20 @@ class TransactionReconciler(
             amount = row.signedAmountString(),
         )) {
             is ApiResult.Success -> {
-                val match = result.data.firstOrNull()
+                val candidateIds = result.data.mapNotNull { it.id }
+                val claimedByOthers = if (candidateIds.isNotEmpty()) {
+                    transactionDao.findClaimedWalletRecordIdsByOthers(candidateIds, row.id).toSet()
+                } else {
+                    emptySet()
+                }
+                val unclaimedRecords = result.data.filter { it.id != null && it.id !in claimedByOthers }
+
+                // Prefer matching reference or merchant if multiple unclaimed records exist
+                val match = unclaimedRecords.firstOrNull { candidate ->
+                    (!row.reference.isNullOrBlank() && candidate.note == row.reference) ||
+                    (!row.merchant.isNullOrBlank() && candidate.counterParty == row.merchant)
+                } ?: unclaimedRecords.firstOrNull()
+
                 if (match?.id != null) {
                     // The server does hold it: adopt the record instead of sending again.
                     transactionDao.markPushed(id = row.id, walletRecordId = match.id)

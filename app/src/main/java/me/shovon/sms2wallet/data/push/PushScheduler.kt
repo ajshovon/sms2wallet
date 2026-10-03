@@ -27,9 +27,9 @@ class PushScheduler @Inject constructor(
     /**
      * Enqueues a push pass.
      *
-     * Uses [ExistingWorkPolicy.KEEP] under a single unique name so approving ten transactions in
-     * a row schedules one drain, not ten competing ones - important because each run claims rows
-     * and concurrent claims would just contend on the same table.
+     * Uses [ExistingWorkPolicy.APPEND_OR_REPLACE] under a single unique name so approving or
+     * ingesting transactions while a drain is completing ensures a subsequent drain pass runs
+     * rather than being silently dropped by KEEP.
      */
     fun schedule() {
         val request = OneTimeWorkRequestBuilder<PushWorker>()
@@ -44,7 +44,7 @@ class PushScheduler @Inject constructor(
             .build()
 
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(PushWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(PushWorker.WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
     private companion object {
