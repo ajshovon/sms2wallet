@@ -3,4 +3,10 @@
     <style name="Theme.Sms2Wallet" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background_dark</item>
     </style>
+
+    <style name="Theme.Sms2Wallet.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/window_background_dark</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Sms2Wallet</item>
+    </style>
 </resources>

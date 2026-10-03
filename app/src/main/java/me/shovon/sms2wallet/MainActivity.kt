@@ -19,7 +19,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import me.shovon.sms2wallet.data.notification.TransactionNotifier
 import me.shovon.sms2wallet.domain.model.ThemeMode
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.activity.viewModels
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.shovon.sms2wallet.presentation.theme.Sms2WalletTheme
 import me.shovon.sms2wallet.presentation.theme.ThemeViewModel
@@ -27,6 +28,7 @@ import me.shovon.sms2wallet.presentation.theme.ThemeViewModel
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private val themeViewModel: ThemeViewModel by viewModels()
     private val pendingReviewId = mutableStateOf<Long?>(null)
 
     /**
@@ -46,7 +48,11 @@ class MainActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition {
+            themeViewModel.appearance.value == null
+        }
         val savedId = savedInstanceState?.getLong(KEY_PENDING_REVIEW_ID, -1L)?.takeIf { it > 0 }
         pendingReviewId.value = savedId ?: readReviewExtra(intent)
 
@@ -58,7 +64,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val currentPendingReviewId by pendingReviewId
 
-            val themeViewModel: ThemeViewModel = hiltViewModel()
             val appearance by themeViewModel.appearance.collectAsStateWithLifecycle()
 
             // Nothing is drawn until the stored preferences have been read, so a user on dark or
