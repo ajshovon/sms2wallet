@@ -78,6 +78,40 @@ class TransactionNotifier @Inject constructor(
     }
 
     /**
+     * Posts the daily spending reminder notification.
+     */
+    fun notifyDailyReminder(todayCount: Int) {
+        if (!canPostNotifications()) return
+        ensureChannels()
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_REMINDERS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Daily Spending Reminder")
+            .setContentText(
+                if (todayCount > 0) {
+                    "You've recorded $todayCount transaction${if (todayCount == 1) "" else "s"} today. Any cash expenses to log?"
+                } else {
+                    "Have any cash expenses to log today?"
+                }
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    context,
+                    DAILY_REMINDER_NOTIFICATION_ID,
+                    Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+
+        NotificationManagerCompat.from(context)
+            .notify(DAILY_REMINDER_NOTIFICATION_ID, builder.build())
+    }
+
+    /**
      * Where tapping the notification goes.
      *
      * A review notification opens that transaction's edit screen directly - the whole point is
@@ -115,6 +149,13 @@ class TransactionNotifier @Inject constructor(
                 NotificationManager.IMPORTANCE_LOW,
             ).apply { description = "A transaction was sent to Wallet automatically." }
         )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_REMINDERS,
+                "Daily reminders",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply { description = "Daily reminder to log unrecorded or cash expenses." }
+        )
     }
 
     /** POST_NOTIFICATIONS is a runtime permission from API 33; posting without it is a no-op. */
@@ -129,5 +170,7 @@ class TransactionNotifier @Inject constructor(
 
         private const val CHANNEL_REVIEW = "transactions_review"
         private const val CHANNEL_PUSHED = "transactions_pushed"
+        private const val CHANNEL_REMINDERS = "daily_reminders"
+        private const val DAILY_REMINDER_NOTIFICATION_ID = 999999
     }
 }

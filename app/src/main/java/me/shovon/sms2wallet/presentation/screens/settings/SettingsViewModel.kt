@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
+import me.shovon.sms2wallet.data.notification.ReminderScheduler
 import me.shovon.sms2wallet.data.remote.ApiResult
 import me.shovon.sms2wallet.data.remote.WalletApiClient
 import kotlinx.coroutines.flow.Flow
@@ -54,6 +55,7 @@ class SettingsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val walletApiClient: WalletApiClient,
     private val intelligenceRepository: IntelligenceRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     /** Screen-local bits with no home in the data layer: what is typed, and the last test result. */
@@ -456,12 +458,25 @@ class SettingsViewModel @Inject constructor(
     // ---- Reminders ------------------------------------------------------------
 
     fun setReminderEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setReminderEnabled(enabled) }
+        viewModelScope.launch {
+            settingsRepository.setReminderEnabled(enabled)
+            if (enabled) {
+                val timeMinutes = settingsRepository.reminderTimeMinutes.first()
+                val hour = timeMinutes / MINUTES_PER_HOUR
+                val minute = timeMinutes % MINUTES_PER_HOUR
+                reminderScheduler.schedule(hour, minute)
+            } else {
+                reminderScheduler.cancel()
+            }
+        }
     }
 
     fun setReminderTime(hourOfDay: Int, minute: Int) {
         viewModelScope.launch {
             settingsRepository.setReminderTimeMinutes(hourOfDay * MINUTES_PER_HOUR + minute)
+            if (settingsRepository.reminderEnabled.first()) {
+                reminderScheduler.schedule(hourOfDay, minute)
+            }
         }
     }
 
