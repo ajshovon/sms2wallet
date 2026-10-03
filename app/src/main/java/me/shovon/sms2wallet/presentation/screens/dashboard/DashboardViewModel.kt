@@ -20,6 +20,7 @@ import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.IntelligenceResult
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
+import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.domain.nlp.NlPrefill
 import me.shovon.sms2wallet.presentation.model.DashboardUiState
 import me.shovon.sms2wallet.presentation.model.QuickAddUiState
@@ -41,19 +42,25 @@ class DashboardViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val walletApiClient: WalletApiClient,
     private val intelligenceRepository: IntelligenceRepository,
+    private val walletSyncRepository: WalletSyncRepository,
 ) : ViewModel() {
 
     private val remoteState = MutableStateFlow(RemoteState())
+
+    private val isRefreshingState = MutableStateFlow(false)
 
     private val quickAddState = MutableStateFlow(QuickAddUiState())
 
     private val baseState: Flow<DashboardUiState> = combine(
         transactionRepository.observePushedTodayCount(),
         transactionRepository.observePushedThisWeekCount(),
-        transactionRepository.observeReviewQueue().map { it.size },
-        settingsRepository.lastScannedTimestamp,
-        remoteState,
-    ) { pushedToday, pushedThisWeek, pendingReview, lastScanned, remote ->
+        transactionRepository.observeReviewQueueCount(),
+        combine(
+            settingsRepository.lastScannedTimestamp,
+            settingsRepository.lastCatalogueSyncAt,
+        ) { scanned, catalogue -> maxOf(scanned, catalogue) },
+        combine(remoteState, isRefreshingState) { remote, refreshing -> remote to refreshing },
+    ) { pushedToday, pushedThisWeek, pendingReview, lastSyncTime, (remote, refreshing) ->
         DashboardUiState(
             pushedToday = pushedToday,
             pushedThisWeek = pushedThisWeek,
@@ -61,10 +68,11 @@ class DashboardViewModel @Inject constructor(
             // to the review queue, so showing a different number than that screen lists would be
             // a bug the user cannot explain.
             pendingReviewCount = pendingReview,
-            lastSyncLabel = TimeFormatter.relativeLabel(lastScanned),
+            lastSyncLabel = TimeFormatter.relativeLabel(lastSyncTime),
             tokenHealth = remote.tokenHealth,
             rateLimit = remote.rateLimit,
             isLoading = remote.isLoading,
+            isRefreshing = refreshing,
         )
     }
 
@@ -133,37 +141,62 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /** Re-checks token validity and the rate-limit budget. Safe to call repeatedly; costs 1-2 API calls. */
-    fun refresh() {
+    /**
+     * Re-checks token validity, syncs accounts/categories if valid, and updates the rate-limit budget.
+     * Safe to call repeatedly.
+     */
+    fun refresh(isPullToRefresh: Boolean = false) {
         viewModelScope.launch {
-            if (!settingsRepository.hasToken.first()) {
-                remoteState.value = RemoteState(tokenHealth = TokenHealth.UNKNOWN, isLoading = false)
-                return@launch
+            if (isPullToRefresh) {
+                isRefreshingState.value = true
             }
-            remoteState.value = remoteState.value.copy(isLoading = true)
-
-            val health = when (walletApiClient.validateToken()) {
-                is ApiResult.Success -> TokenHealth.VALID
-                is ApiResult.Unauthorized -> TokenHealth.INVALID
-                // A token's first use legitimately returns 409 while BudgetBakers builds the
-                // account's initial sync - that is "wait", not "broken".
-                is ApiResult.SyncInProgress -> TokenHealth.SYNCING
-                else -> TokenHealth.UNKNOWN
-            }
-
-            val budget = when (val usage = walletApiClient.usageStats()) {
-                is ApiResult.Success -> {
-                    val limit = usage.data.limit ?: DEFAULT_HOURLY_LIMIT
-                    val remaining = usage.data.remaining
-                    // The API reports what is LEFT; the card shows what has been USED.
-                    RateLimitUiState(used = remaining?.let { (limit - it).coerceAtLeast(0) } ?: 0, limit = limit)
+            try {
+                if (!settingsRepository.hasToken.first()) {
+                    remoteState.value = RemoteState(tokenHealth = TokenHealth.UNKNOWN, isLoading = false)
+                    return@launch
                 }
-                else -> RateLimitUiState()
-            }
+                remoteState.value = remoteState.value.copy(isLoading = true)
 
-            remoteState.value = RemoteState(tokenHealth = health, rateLimit = budget, isLoading = false)
+                val health = when (walletApiClient.validateToken()) {
+                    is ApiResult.Success -> TokenHealth.VALID
+                    is ApiResult.Unauthorized -> TokenHealth.INVALID
+                    // A token's first use legitimately returns 409 while BudgetBakers builds the
+                    // account's initial sync - that is "wait", not "broken".
+                    is ApiResult.SyncInProgress -> TokenHealth.SYNCING
+                    else -> TokenHealth.UNKNOWN
+                }
+
+                // Only sync the catalogue when the user asked, or when there is nothing
+                // cached yet. refresh() also runs automatically whenever this screen is built,
+                // and accounts + categories are several paginated requests against the same
+                // 300/hour budget this card reports - spending it on every visit would drain
+                // the number the user came here to read.
+                val neverSynced = settingsRepository.lastCatalogueSyncAt.first() == 0L
+                if (health == TokenHealth.VALID && (isPullToRefresh || neverSynced)) {
+                    walletSyncRepository.refreshAll()
+                }
+
+                val budget = when (val usage = walletApiClient.usageStats()) {
+                    is ApiResult.Success -> {
+                        val limit = usage.data.limit ?: DEFAULT_HOURLY_LIMIT
+                        val remaining = usage.data.remaining
+                        // The API reports what is LEFT; the card shows what has been USED.
+                        RateLimitUiState(used = remaining?.let { (limit - it).coerceAtLeast(0) } ?: 0, limit = limit)
+                    }
+                    else -> RateLimitUiState()
+                }
+
+                remoteState.value = RemoteState(tokenHealth = health, rateLimit = budget, isLoading = false)
+            } finally {
+                if (isPullToRefresh) {
+                    isRefreshingState.value = false
+                }
+            }
         }
     }
+
+    /** Called on pull-to-refresh on the dashboard. */
+    fun pullRefresh() = refresh(isPullToRefresh = true)
 
     private data class RemoteState(
         val tokenHealth: TokenHealth = TokenHealth.UNKNOWN,

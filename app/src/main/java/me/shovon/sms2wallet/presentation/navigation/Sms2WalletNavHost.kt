@@ -150,6 +150,7 @@ fun Sms2WalletRootScreen(
                 Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
                     DashboardScreen(
                         state = state,
+                        onRefresh = viewModel::pullRefresh,
                         onAddCashExpense = {
                             navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute()) {
                                 launchSingleTop = true

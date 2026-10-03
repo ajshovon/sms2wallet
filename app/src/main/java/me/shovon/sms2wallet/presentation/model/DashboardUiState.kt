@@ -12,7 +12,8 @@ data class DashboardUiState(
     val tokenHealth: TokenHealth = TokenHealth.UNKNOWN,
     val rateLimit: RateLimitUiState = RateLimitUiState(),
     val quickAdd: QuickAddUiState = QuickAddUiState(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
 )
 
 /**

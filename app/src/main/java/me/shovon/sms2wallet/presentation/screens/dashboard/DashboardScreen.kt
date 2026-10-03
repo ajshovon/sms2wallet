@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
@@ -35,6 +36,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,9 +81,11 @@ import me.shovon.sms2wallet.presentation.theme.StandardEasing
  * Home tab: today/this-week push counters, pending review count, quick actions,
  * last sync time, token health, and the Wallet API rate-limit budget.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     state: DashboardUiState,
+    onRefresh: () -> Unit = {},
     onAddCashExpense: () -> Unit,
     onViewReviewQueue: () -> Unit,
     onOpenParserPlayground: () -> Unit = {},
@@ -93,110 +97,116 @@ fun DashboardScreen(
     Sms2WalletScaffold(
         title = "Dashboard"
     ) { padding ->
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(
-                start = Spacing.lg,
-                end = Spacing.lg,
-                top = Spacing.sm,
-                bottom = Spacing.xl
-            )
         ) {
-            // Financial Hub Hero Card
-            item(key = "hero") {
-                DashboardHeroCard(
-                    state = state,
-                    onAddCashExpense = onAddCashExpense,
-                    onViewReviewQueue = onViewReviewQueue,
-                    modifier = Modifier.padding(bottom = Spacing.md)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = Spacing.lg,
+                    end = Spacing.lg,
+                    top = Spacing.sm,
+                    bottom = Spacing.xl
                 )
-            }
-
-            // Stat counters with icon badges
-            item(key = "counters") {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Pushed today",
-                        value = state.pushedToday.toString(),
-                        badgeText = "Today",
-                        icon = SolarIcons.CheckCircle,
-                        iconTint = MaterialTheme.colorScheme.primary
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        label = "This week",
-                        value = state.pushedThisWeek.toString(),
-                        badgeText = "7 days",
-                        icon = SolarIcons.PublishedWithChanges,
-                        iconTint = MaterialTheme.colorScheme.tertiary
+            ) {
+                // Financial Hub Hero Card
+                item(key = "hero") {
+                    DashboardHeroCard(
+                        state = state,
+                        onAddCashExpense = onAddCashExpense,
+                        onViewReviewQueue = onViewReviewQueue,
+                        modifier = Modifier.padding(bottom = Spacing.md)
                     )
                 }
-            }
 
-            // Pending review CTA card
-            item(key = "pending") {
-                PendingReviewCard(
-                    pendingCount = state.pendingReviewCount,
-                    onClick = onViewReviewQueue,
-                    modifier = Modifier.padding(top = Spacing.md)
-                )
-            }
+                // Stat counters with icon badges
+                item(key = "counters") {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            label = "Pushed today",
+                            value = state.pushedToday.toString(),
+                            badgeText = "Today",
+                            icon = SolarIcons.CheckCircle,
+                            iconTint = MaterialTheme.colorScheme.primary
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            label = "This week",
+                            value = state.pushedThisWeek.toString(),
+                            badgeText = "7 days",
+                            icon = SolarIcons.PublishedWithChanges,
+                            iconTint = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
 
-            // Natural language quick add (powered by Gemini)
-            if (state.quickAdd.isAvailable) {
-                item(key = "quick-add") {
-                    QuickAddCard(
-                        state = state.quickAdd,
-                        onInputChange = onQuickAddInputChange,
-                        onSubmit = onQuickAddSubmit,
+                // Pending review CTA card
+                item(key = "pending") {
+                    PendingReviewCard(
+                        pendingCount = state.pendingReviewCount,
+                        onClick = onViewReviewQueue,
                         modifier = Modifier.padding(top = Spacing.md)
                     )
                 }
-            }
 
-            // Quick Tools Grid (3-column dedicated cards)
-            item(key = "quick-tools-header") {
-                SectionHeader(
-                    title = "Tools",
-                    supportingText = "Testing, logs and unmatched SMS",
-                    modifier = Modifier.padding(top = Spacing.xl)
-                )
-            }
+                // Natural language quick add (powered by Gemini)
+                if (state.quickAdd.isAvailable) {
+                    item(key = "quick-add") {
+                        QuickAddCard(
+                            state = state.quickAdd,
+                            onInputChange = onQuickAddInputChange,
+                            onSubmit = onQuickAddSubmit,
+                            modifier = Modifier.padding(top = Spacing.md)
+                        )
+                    }
+                }
 
-            item(key = "quick-tools") {
-                QuickToolsGrid(
-                    onOpenPlayground = onOpenParserPlayground,
-                    onOpenActivity = onOpenActivity,
-                    onOpenUnmatched = onOpenUnmatchedSms
-                )
-            }
-
-            // Pipeline Status section
-            item(key = "status-header") {
-                SectionHeader(
-                    title = "Integration & Health",
-                    supportingText = "Live health of your Wallet API connection",
-                    modifier = Modifier.padding(top = Spacing.xl)
-                )
-            }
-
-            item(key = "status-body") {
-                GroupedContainer {
-                    InfoRow(
-                        icon = SolarIcons.Sync,
-                        title = "Last sync",
-                        value = state.lastSyncLabel ?: "Never synced yet"
+                // Quick Tools Grid (3-column dedicated cards)
+                item(key = "quick-tools-header") {
+                    SectionHeader(
+                        title = "Tools",
+                        supportingText = "Testing, logs and unmatched SMS",
+                        modifier = Modifier.padding(top = Spacing.xl)
                     )
-                    SectionDivider(startInset = STATUS_DIVIDER_INSET)
-                    TokenHealthRow(tokenHealth = state.tokenHealth)
-                    SectionDivider(startInset = STATUS_DIVIDER_INSET)
-                    RateLimitRow(rateLimit = state.rateLimit)
+                }
+
+                item(key = "quick-tools") {
+                    QuickToolsGrid(
+                        onOpenPlayground = onOpenParserPlayground,
+                        onOpenActivity = onOpenActivity,
+                        onOpenUnmatched = onOpenUnmatchedSms
+                    )
+                }
+
+                // Pipeline Status section
+                item(key = "status-header") {
+                    SectionHeader(
+                        title = "Integration & Health",
+                        supportingText = "Live health of your Wallet API connection",
+                        modifier = Modifier.padding(top = Spacing.xl)
+                    )
+                }
+
+                item(key = "status-body") {
+                    GroupedContainer {
+                        InfoRow(
+                            icon = SolarIcons.Sync,
+                            title = "Last sync",
+                            value = state.lastSyncLabel ?: "Never synced yet"
+                        )
+                        SectionDivider(startInset = STATUS_DIVIDER_INSET)
+                        TokenHealthRow(tokenHealth = state.tokenHealth)
+                        SectionDivider(startInset = STATUS_DIVIDER_INSET)
+                        RateLimitRow(rateLimit = state.rateLimit)
+                    }
                 }
             }
         }
