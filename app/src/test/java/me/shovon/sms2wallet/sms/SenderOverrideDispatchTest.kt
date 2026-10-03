@@ -12,9 +12,10 @@ import org.junit.Test
 /**
  * Dispatch when Mobile Number Portability has stripped a bank's masked sender ID.
  *
- * The parsers already fall back to searching the body for a brand token, but that only fires
- * when the message carries one. MTB's plain balance alerts do not, so they go unmatched however
- * good the parser is - which is what a taught sender fixes.
+ * The parsers fall back to the body: a brand token when the message carries one, and - since
+ * the library learned to claim the brand-less BD balance-alert shape - the shape itself when it
+ * does not. A taught sender is what settles the rest: a sender the library cannot place, and a
+ * sender it places as the wrong bank.
  *
  * Bodies below are the redacted placeholders from the library's own parser tests.
  */
@@ -23,7 +24,7 @@ class SenderOverrideDispatchTest {
     private val service = SmsParsingService()
     private val parsers = BankParserFactory.getAllParsers()
 
-    /** An MTB debit alert with no "MTB" anywhere in it - the case that fails today. */
+    /** An MTB debit alert with no "MTB" anywhere in it. */
     private val mtbBodyWithoutBrandToken =
         "Dear Customer, Your A/C XXXXX000000 has been Debited by BDT 15,000.00 on 01/01/24. " +
             "Available balance BDT 1,00,000.00."
@@ -32,10 +33,11 @@ class SenderOverrideDispatchTest {
         service.parse(parsers, RawSms(id = 0, sender = sender, body = body, timestamp = 0L), overrides)
 
     @Test
-    fun `an MNP-rewritten sender is unmatched when the body carries no brand token`() {
+    fun `a brand-less alert from an MNP-rewritten sender is placed by its shape`() {
         val result = parse("01712345678", mtbBodyWithoutBrandToken)
 
-        assertTrue("expected Unmatched, got $result", result is IngestResult.Unmatched)
+        assertTrue("expected Parsed, got $result", result is IngestResult.Parsed)
+        assertEquals("Mutual Trust Bank", (result as IngestResult.Parsed).transaction.bankName)
     }
 
     @Test
@@ -85,11 +87,14 @@ class SenderOverrideDispatchTest {
 
     @Test
     fun `teaching a sender does not affect any other sender`() {
-        val overrides = mapOf("01712345678" to "Mutual Trust Bank")
+        // One sender is pointed somewhere the body does not say; every other sender must still
+        // dispatch on the evidence in the message.
+        val overrides = mapOf("01712345678" to "bKash")
 
         val untouched = parse("01799999999", mtbBodyWithoutBrandToken, overrides)
 
-        assertTrue("expected Unmatched, got $untouched", untouched is IngestResult.Unmatched)
+        assertTrue("expected Parsed, got $untouched", untouched is IngestResult.Parsed)
+        assertEquals("Mutual Trust Bank", (untouched as IngestResult.Parsed).transaction.bankName)
     }
 
     /** EBL's own sample body: it carries an "EBL" marker, unlike MTB's plain alerts. */
