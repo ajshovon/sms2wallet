@@ -28,7 +28,9 @@ object DatabaseModule {
             context,
             Sms2WalletDatabase::class.java,
             Sms2WalletDatabase.DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(Sms2WalletDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideTransactionDao(database: Sms2WalletDatabase): TransactionDao = database.transactionDao()

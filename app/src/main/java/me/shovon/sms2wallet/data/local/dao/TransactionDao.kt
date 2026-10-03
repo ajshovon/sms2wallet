@@ -61,6 +61,19 @@ interface TransactionDao {
     ): Flow<List<TransactionEntity>>
 
     @Query(
+        """
+        SELECT COUNT(*) FROM transactions
+        WHERE push_state IN (:parsed, :failedRetryable, :failedPermanent, :needsVerify)
+        """
+    )
+    fun observeReviewQueueCount(
+        parsed: PushState = PushState.PARSED,
+        failedRetryable: PushState = PushState.FAILED_RETRYABLE,
+        failedPermanent: PushState = PushState.FAILED_PERMANENT,
+        needsVerify: PushState = PushState.NEEDS_VERIFY
+    ): Flow<Int>
+
+    @Query(
         "SELECT * FROM transactions WHERE push_state = :queued ORDER BY timestamp ASC LIMIT :limit"
     )
     suspend fun peekQueuedOldestFirst(limit: Int, queued: PushState = PushState.QUEUED): List<TransactionEntity>

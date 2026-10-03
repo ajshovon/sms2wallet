@@ -18,7 +18,13 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "transactions",
-    indices = [Index(value = ["transaction_hash"], unique = true)]
+    indices = [
+        Index(value = ["transaction_hash"], unique = true),
+        Index(value = ["push_state", "timestamp"]),
+        Index(value = ["wallet_record_id"]),
+        Index(value = ["wallet_account_id", "amount", "timestamp"]),
+        Index(value = ["updated_at"]),
+    ]
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)

@@ -4,7 +4,13 @@ import java.math.BigDecimal
 import java.util.Calendar
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
 import me.shovon.sms2wallet.data.local.dao.TransactionDao
 import me.shovon.sms2wallet.data.local.dao.TransactionSource
 import me.shovon.bdparser.TransactionType
@@ -27,19 +33,38 @@ class TransactionRepository @Inject constructor(
     /** Rows currently needing a human's attention - see [TransactionDao.observeReviewQueue]. */
     fun observeReviewQueue(): Flow<List<TransactionEntity>> = transactionDao.observeReviewQueue()
 
-    /** Count of transactions successfully pushed since local midnight, for the dashboard. */
-    fun observePushedTodayCount(): Flow<Int> {
-        val (dayStart, dayEnd) = todayBoundsMillis()
-        return transactionDao.observePushedCount(dayStart, dayEnd)
+    /** Count of rows currently needing a human's attention, without loading full entities. */
+    fun observeReviewQueueCount(): Flow<Int> = transactionDao.observeReviewQueueCount()
+
+    /** Count of transactions successfully pushed since local midnight, dynamically refreshed at day change. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observePushedTodayCount(): Flow<Int> = flow {
+        while (currentCoroutineContext().isActive) {
+            val (dayStart, dayEnd) = todayBoundsMillis()
+            emit(dayStart to dayEnd)
+            val now = System.currentTimeMillis()
+            val millisUntilMidnight = (dayEnd + 1) - now
+            delay(maxOf(millisUntilMidnight, 1_000L))
+        }
+    }.flatMapLatest { (dayStart, dayEnd) ->
+        transactionDao.observePushedCount(dayStart, dayEnd)
     }
 
     /** Count of transactions still queued or in flight, for the dashboard. */
     fun observePendingCount(): Flow<Int> = transactionDao.observePendingCount()
 
-    /** Count of transactions successfully pushed since the start of the current week, for the dashboard. */
-    fun observePushedThisWeekCount(): Flow<Int> {
-        val (weekStart, weekEnd) = thisWeekBoundsMillis()
-        return transactionDao.observePushedCount(weekStart, weekEnd)
+    /** Count of transactions successfully pushed since the start of the current week, dynamically refreshed. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observePushedThisWeekCount(): Flow<Int> = flow {
+        while (currentCoroutineContext().isActive) {
+            val (weekStart, weekEnd) = thisWeekBoundsMillis()
+            emit(weekStart to weekEnd)
+            val now = System.currentTimeMillis()
+            val millisUntilMidnight = (weekEnd + 1) - now
+            delay(maxOf(millisUntilMidnight, 1_000L))
+        }
+    }.flatMapLatest { (weekStart, weekEnd) ->
+        transactionDao.observePushedCount(weekStart, weekEnd)
     }
 
     /** Distinct (bank, last-4) sources seen so far, for the Settings account-mapping list. */
