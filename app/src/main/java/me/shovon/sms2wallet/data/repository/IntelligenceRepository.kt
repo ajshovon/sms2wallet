@@ -266,20 +266,16 @@ class IntelligenceRepository @Inject constructor(
             }?.let { return it.label }
         }
 
-        // 4. Learned rules from CategoryRuleDao
+        // 4. Learned rules, then the built-in [MerchantCategoryGuesser] - LocalCategoryResolver
+        // tries both, in that order - against the extracted merchant and then the raw input.
+        // Each step keeps going when the id it resolves has no label: a rule can outlive the
+        // category it points at, and a stale rule must not cost the user the later guesses.
         val rules = categoryRuleDao.findApplicableRules("")
-        val localFromMerchant = LocalCategoryResolver.resolve(merchant, rules, categories)
-        if (localFromMerchant != null) return labels.labelFor(localFromMerchant)
+        LocalCategoryResolver.resolve(merchant, rules, categories)
+            ?.let(labels::labelFor)
+            ?.let { return it }
 
-        val localFromInput = LocalCategoryResolver.resolve(input, rules, categories)
-        if (localFromInput != null) return labels.labelFor(localFromInput)
-
-        // 5. Built-in MerchantCategoryGuesser
-        val guessedFromMerchant = MerchantCategoryGuesser.guess(merchant, categories)
-        if (guessedFromMerchant != null) return labels.labelFor(guessedFromMerchant)
-
-        val guessedFromInput = MerchantCategoryGuesser.guess(input, categories)
-        return labels.labelFor(guessedFromInput)
+        return LocalCategoryResolver.resolve(input, rules, categories)?.let(labels::labelFor)
     }
 
     /** The model's choice, else the user's default account, else whatever is first. */
