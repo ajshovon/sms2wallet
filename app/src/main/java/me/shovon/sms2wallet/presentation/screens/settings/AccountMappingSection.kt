@@ -41,6 +41,7 @@ fun AccountMappingRow(
     modifier: Modifier = Modifier
 ) {
     val isMapped = mapping.mappedWalletAccountName != null
+    val displayLabel = formatMappingSourceLabel(mapping.sourceLabel)
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -53,9 +54,9 @@ fun AccountMappingRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                ProviderAvatar(providerName = mapping.sourceLabel, size = 36.dp)
+                ProviderAvatar(providerName = displayLabel, size = 36.dp)
                 Text(
-                    text = mapping.sourceLabel,
+                    text = displayLabel,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -75,7 +76,7 @@ fun AccountMappingRow(
                 searchPlaceholder = "Search accounts",
                 // The visible source name labels this control; a screen reader reaching the
                 // picker alone would otherwise hear only the chosen value with no context.
-                contentDescription = "Wallet account for ${mapping.sourceLabel}",
+                contentDescription = "Wallet account for $displayLabel",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Spacing.md)
@@ -92,3 +93,7 @@ fun AccountMappingRow(
         }
     }
 }
+
+internal fun formatMappingSourceLabel(label: String): String =
+    label.replace("Mutual Trust Bank", "MTB", ignoreCase = true)
+

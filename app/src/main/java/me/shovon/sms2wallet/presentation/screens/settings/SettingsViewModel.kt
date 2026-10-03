@@ -275,34 +275,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * One row per source the app has actually seen an SMS from, union the sources already
-     * mapped. Without the union, a mapping whose source has since been purged would silently
-     * vanish from the screen while still routing transactions.
-     */
-    private fun buildAccountMappingRows(
-        sources: List<me.shovon.sms2wallet.data.local.dao.TransactionSource>,
-        mappings: List<AccountMappingEntity>,
-        accountLabels: List<WalletLabel>,
-    ): List<AccountMappingRowUiState> {
-        val fromTransactions = sources.map { it.bankName to (it.accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4) }
-        val fromMappings = mappings.map { it.bankName to it.accountLast4 }
-        // Resolved from the stored id, not the stored name: the name is a denormalised copy
-        // taken when the mapping was made, and it has to match one of the picker's options
-        // exactly or the picker shows a value it cannot offer.
-        val mappedLabelBySource = mappings.associateBy(
-            { it.bankName to it.accountLast4 },
-            { accountLabels.labelFor(it.walletAccountId) },
-        )
-        return (fromTransactions + fromMappings).distinct().sortedBy { it.first }.map { (bank, last4) ->
-            AccountMappingRowUiState(
-                sourceId = "$bank|$last4",
-                sourceLabel = if (last4.isBlank()) bank else "$bank •••• $last4",
-                mappedWalletAccountName = mappedLabelBySource[bank to last4],
-                availableWalletAccountNames = accountLabels.labels(),
-            )
-        }
-    }
+
 
     // ---- Wallet connection ----------------------------------------------------
 
@@ -484,11 +457,48 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setReminderSuppressThreshold(count) }
     }
 
-    private companion object {
+    companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
         const val MINUTES_PER_HOUR = 60
 
         const val DEFAULT_RETRY_MINUTES = 5
+
+        internal fun formatDisplayBankName(bank: String): String = when {
+            bank.equals("Mutual Trust Bank", ignoreCase = true) ||
+            bank.equals("Mutual Trust Bank Limited", ignoreCase = true) ||
+            bank.equals("Mutual Trust Bank Ltd", ignoreCase = true) -> "MTB"
+            else -> bank
+        }
+
+        /**
+         * One row per source the app has actually seen an SMS from, union the sources already
+         * mapped. Without the union, a mapping whose source has since been purged would silently
+         * vanish from the screen while still routing transactions.
+         */
+        internal fun buildAccountMappingRows(
+            sources: List<me.shovon.sms2wallet.data.local.dao.TransactionSource>,
+            mappings: List<AccountMappingEntity>,
+            accountLabels: List<WalletLabel>,
+        ): List<AccountMappingRowUiState> {
+            val fromTransactions = sources.map { it.bankName to (it.accountLast4 ?: AccountMappingEntity.UNKNOWN_LAST4) }
+            val fromMappings = mappings.map { it.bankName to it.accountLast4 }
+            // Resolved from the stored id, not the stored name: the name is a denormalised copy
+            // taken when the mapping was made, and it has to match one of the picker's options
+            // exactly or the picker shows a value it cannot offer.
+            val mappedLabelBySource = mappings.associateBy(
+                { it.bankName to it.accountLast4 },
+                { accountLabels.labelFor(it.walletAccountId) },
+            )
+            return (fromTransactions + fromMappings).distinct().sortedBy { formatDisplayBankName(it.first) }.map { (bank, last4) ->
+                val displayBank = formatDisplayBankName(bank)
+                AccountMappingRowUiState(
+                    sourceId = "$bank|$last4",
+                    sourceLabel = if (last4.isBlank()) displayBank else "$displayBank •••• $last4",
+                    mappedWalletAccountName = mappedLabelBySource[bank to last4],
+                    availableWalletAccountNames = accountLabels.labels(),
+                )
+            }
+        }
     }
 
     /** Groups the reminder + appearance flows so the outer `combine` stays within its arity. */
