@@ -19,6 +19,14 @@ class WalletLabelsTest {
     private fun category(id: String, name: String, parentId: String? = null) =
         WalletCategoryEntity(id = id, name = name, systemId = null, parentId = parentId, color = null, cachedAt = 0)
 
+    /** Wallet's own template categories, which a record may not be filed against. */
+    private fun systemCategory(id: String, name: String, systemId: String) =
+        WalletCategoryEntity(id = id, name = name, systemId = systemId, parentId = null, color = null, cachedAt = 0)
+
+    /** Wallet's built-in system subcategories, which have parentId and are assignable. */
+    private fun systemSubcategory(id: String, name: String, systemId: String, parentId: String) =
+        WalletCategoryEntity(id = id, name = name, systemId = systemId, parentId = parentId, color = null, cachedAt = 0)
+
     private fun account(id: String, name: String, currency: String = "BDT") =
         WalletAccountEntity(id = id, name = name, currencyCode = currency, accountType = "GENERAL", cachedAt = 0)
 
@@ -84,6 +92,54 @@ class WalletLabelsTest {
 
         assertEquals("Cash (BDT)", labels.labelFor("a"))
         assertEquals("Cash (USD)", labels.labelFor("b"))
+    }
+
+    @Test
+    fun `system default categories are offered alongside custom categories`() {
+        val labels = WalletLabels.forCategories(
+            listOf(
+                systemCategory("5c5c4e20-00c8-8000-8000-000000000000", "Food & Drinks", "food_and_drinks"),
+                category("mine", "Groceries", parentId = "5c5c4e20-00c8-8000-8000-000000000000"),
+            )
+        )
+
+        assertEquals(listOf("Food & Drinks", "Groceries"), labels.labels())
+        assertEquals("5c5c4e20-00c8-8000-8000-000000000000", labels.idFor("Food & Drinks"))
+        assertEquals("mine", labels.idFor("Groceries"))
+    }
+
+    @Test
+    fun `system subcategories with parentId and parent categories are all offered`() {
+        val labels = WalletLabels.forCategories(
+            listOf(
+                systemCategory("sys-food", "Food & Drinks", "food_and_drinks"),
+                systemSubcategory("sub-groc", "Groceries", "food_and_drinks__groceries", "sys-food"),
+                systemSubcategory("sub-rest", "Restaurant", "food_and_drinks__restaurant", "sys-food"),
+            )
+        )
+
+        assertEquals(listOf("Food & Drinks", "Groceries", "Restaurant"), labels.labels())
+        assertEquals("sys-food", labels.idFor("Food & Drinks"))
+        assertEquals("sub-groc", labels.idFor("Groceries"))
+        assertEquals("sub-rest", labels.idFor("Restaurant"))
+    }
+
+    @Test
+    fun `a system parent names its custom children apart while staying selectable`() {
+        val labels = WalletLabels.forCategories(
+            listOf(
+                systemCategory("sys-food", "Food", "food"),
+                systemCategory("sys-transport", "Transport", "transport"),
+                category("a", "Other", parentId = "sys-food"),
+                category("b", "Other", parentId = "sys-transport"),
+            )
+        )
+
+        assertEquals("Other (Food)", labels.labelFor("a"))
+        assertEquals("Other (Transport)", labels.labelFor("b"))
+        assertEquals("Food", labels.labelFor("sys-food"))
+        assertEquals("Transport", labels.labelFor("sys-transport"))
+        assertEquals(4, labels.labels().size)
     }
 
     @Test

@@ -55,8 +55,10 @@ object NlPrompt {
         if (categoryNames.isNotEmpty()) {
             appendLine("category:")
             appendLine(
-                "  Choose the single best fit from the list below. The value must match one of " +
-                    "these exactly. If none fits, omit the field."
+                "  Infer the category from the vendor, merchant, item bought, or nature of the " +
+                    "transaction (e.g. dining, groceries, transport, bills, shopping). Always " +
+                    "choose the single best fit from the list below. The value must match one " +
+                    "of these exactly."
             )
             appendLine("  Categories: " + categoryNames.joinToString(", "))
             appendLine()

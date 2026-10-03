@@ -23,6 +23,7 @@ import me.shovon.sms2wallet.data.repository.CategorySuggestions
 import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.SettingsRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
+import me.shovon.sms2wallet.domain.model.WalletLabels
 import me.shovon.sms2wallet.presentation.model.ReviewQueueUiState
 import me.shovon.sms2wallet.presentation.model.toReviewQueueGroups
 
@@ -55,8 +56,8 @@ class ReviewQueueViewModel @Inject constructor(
         selection,
         settingsRepository.hasActedOnReviewQueue,
     ) { transactions, categories, accounts, selectionState, hasActed ->
-        val categoriesById = categories.associate { it.id to it.name }
-        val accountsById = accounts.associate { it.id to it.name }
+        val categoriesById = WalletLabels.forCategories(categories).associate { it.id to it.label }
+        val accountsById = WalletLabels.forAccounts(accounts).associate { it.id to it.label }
         val groups = transactions.toReviewQueueGroups(categoriesById, accountsById)
         val visibleIds = transactions.mapTo(mutableSetOf()) { it.id.toString() }
         ReviewQueueUiState(
@@ -120,14 +121,9 @@ class ReviewQueueViewModel @Inject constructor(
                     val note = result.note
                     var applied = 0
                     result.categoryIdByTransactionId.forEach { (id, categoryId) ->
-                        val row = needing.firstOrNull { it.id == id } ?: return@forEach
-                        transactionRepository.update(
-                            row.copy(
-                                walletCategoryId = categoryId,
-                                updatedAt = System.currentTimeMillis(),
-                            )
-                        )
-                        applied++
+                        if (transactionRepository.updateCategoryIfReviewable(id, categoryId)) {
+                            applied++
+                        }
                     }
                     suggesting.value = false
                     val summary = when {

@@ -74,6 +74,10 @@ class TransactionRepository @Inject constructor(
 
     suspend fun update(transaction: TransactionEntity) = transactionDao.update(transaction)
 
+    /** Targeted update for suggested categories that cannot revert concurrent user actions. */
+    suspend fun updateCategoryIfReviewable(id: Long, categoryId: String): Boolean =
+        transactionDao.updateCategoryIfReviewable(id, categoryId) > 0
+
     /**
      * User-approves a row for sending: moves it from [PushState.PARSED] or
      * [PushState.FAILED_RETRYABLE] into [PushState.QUEUED].

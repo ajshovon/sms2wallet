@@ -10,6 +10,10 @@ import io.ktor.utils.io.ByteReadChannel
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import me.shovon.sms2wallet.data.remote.GeminiNaturalLanguageParser
 import me.shovon.sms2wallet.data.remote.NlParseResult
 import org.junit.Assert.assertEquals
@@ -91,10 +95,32 @@ class GeminiNaturalLanguageParserTest {
     fun `category names are sent as a schema enum when shared`() = runTest {
         val (parser, capture) = parserReturning("""{"amount":-120,"title":"Uber","category":"Transport"}""")
 
-        parser.parse("uber 120", listOf("Transport", "Groceries"), emptyList(), "gemini-flash-latest")
+        val result = parser.parse("uber 120", listOf("Transport", "Groceries"), emptyList(), "gemini-flash-latest")
 
         assertTrue(capture.body.contains("\"Transport\""))
         assertTrue(capture.body.contains("\"enum\""))
+        val transaction = (result as NlParseResult.Success).transaction
+        assertEquals("Transport", transaction.categoryName)
+    }
+
+    @Test
+    fun `shared categories are required in the schema so the model always returns one`() = runTest {
+        val (parser, capture) = parserReturning("""{"amount":-120,"title":"Uber","category":"Transport"}""")
+
+        parser.parse("uber 120", listOf("Transport", "Groceries"), emptyList(), "gemini-flash-latest")
+
+        // The required array must include "category" when shared — an optional enum field
+        // is consistently omitted by newer Gemini models, defeating the whole feature.
+        // Parse the schema out of the request body and check the required array directly.
+        val schema = Json.parseToJsonElement(capture.body)
+            .jsonObject["generationConfig"]!!
+            .jsonObject["responseSchema"]!!
+            .jsonObject
+        val required = schema["required"]!!.jsonArray.map { it.jsonPrimitive.content }
+        assertTrue("category" in required)
+        // account is intentionally absent: the prompt says set it only when the user
+        // explicitly named one, so forcing it would produce wrong guesses.
+        assertFalse("account" in required)
     }
 
     @Test

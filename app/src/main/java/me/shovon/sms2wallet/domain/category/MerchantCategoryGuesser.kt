@@ -27,51 +27,51 @@ object MerchantCategoryGuesser {
      */
     private val RULES: List<Rule> = listOf(
         Rule(
-            merchants = listOf("shwapno", "agora", "meena bazar", "meenabazar", "unimart", "daily shopping", "grocer", "supershop", "super shop"),
+            merchants = listOf("shwapno", "agora", "meena bazar", "meenabazar", "unimart", "daily shopping", "grocer", "grocery", "groceries", "supershop", "super shop", "supermarket", "bazaar", "bazar", "market"),
             categoryHints = listOf("grocer", "food"),
         ),
         Rule(
-            merchants = listOf("pharma", "lazz", "medicine", "hospital", "clinic", "diagnostic", "labaid", "popular diagnostic"),
+            merchants = listOf("pharma", "pharmacy", "lazz", "medicine", "hospital", "clinic", "diagnostic", "labaid", "popular diagnostic", "doctor", "dentist", "medical"),
             categoryHints = listOf("health", "pharm", "medic"),
         ),
         Rule(
-            merchants = listOf("uber", "pathao", "obhai", "shohoz", "cng", "rickshaw", "bus ticket", "train"),
+            merchants = listOf("uber", "pathao", "obhai", "shohoz", "cng", "rickshaw", "bus ticket", "train", "taxi", "cab", "bus", "metro", "fare", "transit", "ride", "flight"),
             categoryHints = listOf("transport", "taxi", "travel"),
         ),
         Rule(
-            merchants = listOf("padma oil", "jamuna oil", "petrol", "octane", "fuel", "filling station"),
+            merchants = listOf("padma oil", "jamuna oil", "petrol", "octane", "fuel", "filling station", "gas station", "cng station"),
             categoryHints = listOf("fuel", "transport"),
         ),
         Rule(
-            merchants = listOf("restaurant", "cafe", "coffee", "kfc", "pizza", "burger", "bbq", "sultan", "dhaba", "food panda", "foodpanda"),
+            merchants = listOf("restaurant", "cafe", "coffee", "kfc", "pizza", "burger", "bbq", "sultan", "dhaba", "food panda", "foodpanda", "dinner", "lunch", "breakfast", "food", "meal", "snack", "snacks", "bakery", "sweet", "sweets", "tea", "drink", "drinks", "bar"),
             categoryHints = listOf("dining", "restaurant", "food"),
         ),
         Rule(
-            merchants = listOf("daraz", "chaldal", "rokomari", "ajkerdeal", "pickaboo", "othoba"),
+            merchants = listOf("daraz", "chaldal", "rokomari", "ajkerdeal", "pickaboo", "othoba", "shop", "shopping", "store"),
             categoryHints = listOf("shopping", "electronic"),
         ),
         Rule(
-            merchants = listOf("grameenphone", "robi", "banglalink", "airtel", "teletalk", "recharge", "topup", "top up"),
+            merchants = listOf("grameenphone", "robi", "banglalink", "airtel", "teletalk", "recharge", "topup", "top up", "mobile recharge"),
             categoryHints = listOf("mobile", "phone", "communication", "recharge"),
         ),
         Rule(
-            merchants = listOf("desco", "dpdc", "wasa", "titas", "palli bidyut", "electricity", "gas bill", "water bill", "utility"),
+            merchants = listOf("desco", "dpdc", "wasa", "titas", "palli bidyut", "electricity", "gas bill", "water bill", "utility", "electric", "bill", "current bill"),
             categoryHints = listOf("utilit", "bill", "energ"),
         ),
         Rule(
-            merchants = listOf("link3", "amber it", "carnival", "dot internet", "broadband", "internet"),
+            merchants = listOf("link3", "amber it", "carnival", "dot internet", "broadband", "internet", "wifi"),
             categoryHints = listOf("internet", "communication", "bill"),
         ),
         Rule(
-            merchants = listOf("school", "college", "university", "tuition", "coaching", "academy"),
+            merchants = listOf("school", "college", "university", "tuition", "coaching", "academy", "course", "education"),
             categoryHints = listOf("education", "school"),
         ),
         Rule(
-            merchants = listOf("salary", "payroll", "disbursement"),
+            merchants = listOf("salary", "payroll", "disbursement", "wage", "income", "freelance", "stipend"),
             categoryHints = listOf("salary", "income", "wage"),
         ),
         Rule(
-            merchants = listOf("aarong", "yellow", "ecstasy", "sailor", "clothing", "fashion", "apparel"),
+            merchants = listOf("aarong", "yellow", "ecstasy", "sailor", "clothing", "fashion", "apparel", "cloth", "clothes", "shoe", "shoes", "dress", "shirt", "pant"),
             categoryHints = listOf("cloth", "shopping", "apparel"),
         ),
     )
@@ -83,7 +83,8 @@ object MerchantCategoryGuesser {
      */
     fun guess(merchant: String?, categories: List<WalletCategoryEntity>): String? {
         val needle = merchant?.trim()?.lowercase().orEmpty()
-        if (needle.isEmpty() || categories.isEmpty()) return null
+        val assignable = categories.filter { it.isAssignable }
+        if (needle.isEmpty() || assignable.isEmpty()) return null
 
         val rule = RULES.firstOrNull { rule ->
             rule.merchants.any { needle.contains(it) }
@@ -92,7 +93,7 @@ object MerchantCategoryGuesser {
         // Hints are ordered by preference, so the first hint that matches any of the user's
         // categories wins - "grocer" before the broader "food".
         rule.categoryHints.forEach { hint ->
-            val match = categories.firstOrNull { it.name.lowercase().contains(hint) }
+            val match = assignable.firstOrNull { it.name.lowercase().contains(hint) }
             if (match != null) return match.id
         }
         return null

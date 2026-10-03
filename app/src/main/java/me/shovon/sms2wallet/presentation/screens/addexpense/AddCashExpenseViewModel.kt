@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.data.repository.WalletSyncRepository
 import me.shovon.sms2wallet.domain.model.WalletLabels
@@ -36,6 +37,7 @@ class AddCashExpenseViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val pushScheduler: PushScheduler,
     private val appPreferences: AppPreferences,
+    private val intelligenceRepository: IntelligenceRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -79,10 +81,24 @@ class AddCashExpenseViewModel @Inject constructor(
                 ?: accountLabels.labelFor(defaultAccountId)
                 ?: accountLabels.labels().firstOrNull().orEmpty()
 
+            val currentCategory = _uiState.value.category
+            val categoryLabel = if (currentCategory.isNotBlank()) {
+                categoryLabels.firstOrNull {
+                    it.label.equals(currentCategory.trim(), ignoreCase = true)
+                }?.label ?: categoryLabels.labelFor(
+                    walletSyncRepository.categories.first()
+                        .filter { it.isAssignable }
+                        .firstOrNull { it.name.equals(currentCategory.trim(), ignoreCase = true) }?.id
+                ) ?: currentCategory
+            } else {
+                currentCategory
+            }
+
             _uiState.value = _uiState.value.copy(
                 availableAccounts = accountLabels.labels(),
                 availableCategories = categoryLabels.labels(),
                 accountName = accountLabel,
+                category = categoryLabel,
             )
         }
     }
@@ -127,6 +143,7 @@ class AddCashExpenseViewModel @Inject constructor(
                 return@launch
             }
             val categoryLabels = WalletLabels.forCategories(walletSyncRepository.categories.first())
+            val categoryId = categoryLabels.idFor(state.category)
 
             transactionRepository.insertManual(
                 amount = amount,
@@ -134,7 +151,12 @@ class AddCashExpenseViewModel @Inject constructor(
                 merchant = state.merchant.takeIf { it.isNotBlank() },
                 note = state.note.takeIf { it.isNotBlank() },
                 walletAccountId = accountId,
-                walletCategoryId = categoryLabels.idFor(state.category),
+                walletCategoryId = categoryId,
+            )
+            intelligenceRepository.rememberCategory(
+                merchant = state.merchant.takeIf { it.isNotBlank() },
+                bankName = null,
+                walletCategoryId = categoryId,
             )
             pushScheduler.schedule()
             _uiState.value = _uiState.value.copy(isSaving = false)

@@ -98,7 +98,7 @@ class IntelligenceRepository @Inject constructor(
                         // empty for the user to fill rather than making them clear a literal 0.
                         amountText = if (parsed.amount.signum() == 0) "" else parsed.amount.toPlainAmountText(),
                         isIncome = parsed.isIncome,
-                        categoryName = resolveCategoryLabel(parsed.categoryName, parsed.title, categories),
+                        categoryName = resolveCategoryLabel(parsed.categoryName, parsed.title, input, categories),
                         accountName = resolveAccountLabel(parsed.accountName, current.defaultAccountId, accounts),
                         note = parsed.note,
                     )
@@ -139,8 +139,13 @@ class IntelligenceRepository @Inject constructor(
         val resolved = mutableMapOf<Long, String>()
         val unresolved = mutableListOf<CategorySubject>()
 
+        // Rules are keyed by bank, and a queue holds many rows from a handful of banks, so
+        // this is one query per distinct bank rather than one per transaction.
+        val rulesByBank = subjects.map { it.bankName }.distinct()
+            .associateWith { categoryRuleDao.findApplicableRules(it) }
+
         for (subject in subjects) {
-            val rules = categoryRuleDao.findApplicableRules(subject.bankName)
+            val rules = rulesByBank[subject.bankName].orEmpty()
             val local = LocalCategoryResolver.resolve(subject.merchant, rules, categories)
             if (local != null) resolved[subject.transactionId] = local else unresolved += subject
         }
@@ -227,25 +232,54 @@ class IntelligenceRepository @Inject constructor(
     }
 
     /**
-     * Matches the model's category name to a real one, falling back to the on-device guesser.
+     * Matches the model's category name to a real one, falling back to learned rules and the
+     * on-device guesser.
      *
-     * The match is exact-but-case-insensitive rather than fuzzy: the model chose from an enum of
-     * these exact names, so anything that does not match one is a bug or a stale catalogue, and
-     * quietly resolving it to a *near* category would file money in the wrong place.
+     * Exact-or-disambiguated match against catalogue labels and raw category names first. If the
+     * model did not pick a category or categories were not shared, checks learned category rules
+     * and built-in merchant category rules against both the extracted merchant name and the raw input.
      */
-    private fun resolveCategoryLabel(
+    private suspend fun resolveCategoryLabel(
         modelChoice: String?,
         merchant: String,
+        input: String,
         categories: List<WalletCategoryEntity>,
     ): String? {
         val labels = WalletLabels.forCategories(categories)
 
-        modelChoice
-            ?.let { choice -> labels.firstOrNull { it.label.equals(choice, ignoreCase = true) } }
-            ?.let { return it.label }
+        if (!modelChoice.isNullOrBlank()) {
+            val choice = modelChoice.trim()
+            // 1. Direct label match
+            labels.firstOrNull { it.label.equals(choice, ignoreCase = true) }
+                ?.let { return it.label }
 
-        val guessedId = MerchantCategoryGuesser.guess(merchant, categories) ?: return null
-        return labels.labelFor(guessedId)
+            // 2. Base category name match (in case model returned raw name without parent qualifier)
+            val assignable = categories.filter { it.isAssignable }
+            assignable.firstOrNull { it.name.equals(choice, ignoreCase = true) }
+                ?.let { labels.labelFor(it.id) }
+                ?.let { return it }
+
+            // 3. Prefix/parenthetical match
+            labels.firstOrNull {
+                it.label.startsWith("$choice (", ignoreCase = true) ||
+                    choice.startsWith("${it.label} (", ignoreCase = true)
+            }?.let { return it.label }
+        }
+
+        // 4. Learned rules from CategoryRuleDao
+        val rules = categoryRuleDao.findApplicableRules("")
+        val localFromMerchant = LocalCategoryResolver.resolve(merchant, rules, categories)
+        if (localFromMerchant != null) return labels.labelFor(localFromMerchant)
+
+        val localFromInput = LocalCategoryResolver.resolve(input, rules, categories)
+        if (localFromInput != null) return labels.labelFor(localFromInput)
+
+        // 5. Built-in MerchantCategoryGuesser
+        val guessedFromMerchant = MerchantCategoryGuesser.guess(merchant, categories)
+        if (guessedFromMerchant != null) return labels.labelFor(guessedFromMerchant)
+
+        val guessedFromInput = MerchantCategoryGuesser.guess(input, categories)
+        return labels.labelFor(guessedFromInput)
     }
 
     /** The model's choice, else the user's default account, else whatever is first. */

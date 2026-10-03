@@ -26,18 +26,27 @@ object WalletLabels {
      * to read but at least keeps the two entries selectable and distinct.
      */
     fun forCategories(categories: List<WalletCategoryEntity>): List<WalletLabel> {
+        // Indexed once. Scanning the list inside the qualifier made labelling quadratic, and
+        // this runs on every load of the add, detail and settings screens.
+        // Names resolve against every cached category, including Wallet's system ones: a custom
+        // category's parent IS a system category, and the parent name is what tells two
+        // same-named categories apart.
         val nameById = categories.associate { it.id to it.name }
+        val parentIdById = categories.associate { it.id to it.parentId }
         return disambiguate(
-            items = categories.map { it.id to it.name },
-            qualifier = { id -> categories.firstOrNull { it.id == id }?.parentId?.let(nameById::get) },
+            items = categories.filter { it.isAssignable }.map { it.id to it.name },
+            qualifier = { id -> parentIdById[id]?.let(nameById::get) },
         )
     }
 
     /** Labels accounts, disambiguating repeats by currency ("Cash (USD)"). */
-    fun forAccounts(accounts: List<WalletAccountEntity>): List<WalletLabel> = disambiguate(
-        items = accounts.map { it.id to it.name },
-        qualifier = { id -> accounts.firstOrNull { it.id == id }?.currencyCode?.takeIf { it.isNotBlank() } },
-    )
+    fun forAccounts(accounts: List<WalletAccountEntity>): List<WalletLabel> {
+        val currencyById = accounts.associate { it.id to it.currencyCode }
+        return disambiguate(
+            items = accounts.map { it.id to it.name },
+            qualifier = { id -> currencyById[id]?.takeIf { it.isNotBlank() } },
+        )
+    }
 
     private fun disambiguate(
         items: List<Pair<String, String>>,

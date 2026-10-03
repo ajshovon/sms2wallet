@@ -153,6 +153,27 @@ interface TransactionDao {
         pushed: PushState = PushState.PUSHED
     )
 
+    /**
+     * Updates the category of a transaction only if it is still in a reviewable state.
+     * Prevents overwriting concurrent user actions (such as approvals or dismissals).
+     */
+    @Query(
+        """
+        UPDATE transactions
+        SET wallet_category_id = :categoryId, updated_at = :now
+        WHERE id = :id AND push_state IN (:parsed, :failedRetryable, :failedPermanent, :needsVerify)
+        """
+    )
+    suspend fun updateCategoryIfReviewable(
+        id: Long,
+        categoryId: String,
+        now: Long = System.currentTimeMillis(),
+        parsed: PushState = PushState.PARSED,
+        failedRetryable: PushState = PushState.FAILED_RETRYABLE,
+        failedPermanent: PushState = PushState.FAILED_PERMANENT,
+        needsVerify: PushState = PushState.NEEDS_VERIFY
+    ): Int
+
     @Query(
         """
         UPDATE transactions

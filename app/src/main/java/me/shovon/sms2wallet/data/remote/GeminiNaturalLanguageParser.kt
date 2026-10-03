@@ -414,6 +414,13 @@ class GeminiNaturalLanguageParser(
             putJsonArray("required") {
                 add(JsonPrimitive("amount"))
                 add(JsonPrimitive("title"))
+                // Category must be required when shared: an optional enum field is
+                // consistently omitted by newer Gemini models, which defeats the purpose
+                // of sharing names in the first place. A possibly-wrong pick the user can
+                // fix on the add screen is better than no pick at all.
+                if (categoryNames.isNotEmpty()) add(JsonPrimitive("category"))
+                // Account stays optional: the prompt tells the model to set it only when
+                // the user explicitly named one, so requiring it would force a guess.
             }
         }
 

@@ -36,13 +36,16 @@ object LocalCategoryResolver {
      */
     fun keywordFor(merchant: String?, maxWords: Int = 2): String? {
         val words = merchant?.trim()
-            ?.split(Regex("[^\\p{L}\\p{N}]+"))
+            ?.split(WORD_SEPARATOR)
             ?.filter { it.length >= MIN_WORD_LENGTH && !it.all(Char::isDigit) }
             ?.takeIf { it.isNotEmpty() }
             ?: return null
 
         return words.take(maxWords).joinToString(" ")
     }
+
+    /** Hoisted so the pattern is compiled once rather than on every call. */
+    private val WORD_SEPARATOR = Regex("[^\\p{L}\\p{N}]+")
 
     private const val MIN_WORD_LENGTH = 3
 }

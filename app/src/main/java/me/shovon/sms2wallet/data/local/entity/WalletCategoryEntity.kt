@@ -29,4 +29,10 @@ data class WalletCategoryEntity(
     /** Epoch millis when this row was last refreshed from the API. */
     @ColumnInfo(name = "cached_at")
     val cachedAt: Long
-)
+) {
+    /**
+     * Whether a category is valid for assignment to records.
+     * All non-blank categories (both system defaults and custom subcategories) can be assigned.
+     */
+    val isAssignable: Boolean get() = name.isNotBlank()
+}

@@ -68,4 +68,89 @@ class MerchantCategoryGuesserTest {
         assertEquals("cat-0", MerchantCategoryGuesser.guess("LAZZ PHARMA", cats))
         assertEquals("cat-1", MerchantCategoryGuesser.guess("PATHAO RIDES", cats))
     }
+
+    @Test
+    fun `guesses a system category when matched`() {
+        val system = WalletCategoryEntity(
+            id = "5c5c4e20-00c8-8000-8000-000000000000",
+            name = "Food & Drinks",
+            systemId = "food_and_drinks",
+            parentId = null,
+            color = null,
+            cachedAt = 0,
+        )
+
+        assertEquals("5c5c4e20-00c8-8000-8000-000000000000", MerchantCategoryGuesser.guess("SHWAPNO SUPERSHOP", listOf(system)))
+    }
+
+    @Test
+    fun `guesses a system subcategory with parentId`() {
+        val root = WalletCategoryEntity(
+            id = "sys-root",
+            name = "Food & Drinks",
+            systemId = "food_and_drinks",
+            parentId = null,
+            color = null,
+            cachedAt = 0,
+        )
+        val groceries = WalletCategoryEntity(
+            id = "sub-groc",
+            name = "Groceries",
+            systemId = "food_and_drinks__groceries",
+            parentId = "sys-root",
+            color = null,
+            cachedAt = 0,
+        )
+
+        assertEquals("sub-groc", MerchantCategoryGuesser.guess("SHWAPNO SUPERSHOP", listOf(root, groceries)))
+    }
+
+    @Test
+    fun `common quick-add expense words map to correct categories`() {
+        val cats = categories("Dining out", "Transportation", "Groceries", "Utilities & Bills", "Shopping")
+
+        // Dining / Food
+        assertEquals("cat-0", MerchantCategoryGuesser.guess("dinner", cats))
+        assertEquals("cat-0", MerchantCategoryGuesser.guess("lunch at office", cats))
+        assertEquals("cat-0", MerchantCategoryGuesser.guess("breakfast", cats))
+        assertEquals("cat-0", MerchantCategoryGuesser.guess("coffee with friends", cats))
+
+        // Transport
+        assertEquals("cat-1", MerchantCategoryGuesser.guess("taxi fare", cats))
+        assertEquals("cat-1", MerchantCategoryGuesser.guess("bus ticket", cats))
+        assertEquals("cat-1", MerchantCategoryGuesser.guess("metro rail", cats))
+
+        // Groceries
+        assertEquals("cat-2", MerchantCategoryGuesser.guess("groceries", cats))
+        assertEquals("cat-2", MerchantCategoryGuesser.guess("supermarket market", cats))
+
+        // Utilities
+        assertEquals("cat-3", MerchantCategoryGuesser.guess("electricity bill", cats))
+        assertEquals("cat-3", MerchantCategoryGuesser.guess("electric", cats))
+    }
+
+    @Test
+    fun `uber 120 correctly matches Transportation category when Card payment also exists`() {
+        val categories = listOf(
+            WalletCategoryEntity(
+                id = "cat-trans",
+                name = "Transportation",
+                systemId = "transportation",
+                parentId = null,
+                color = null,
+                cachedAt = 0,
+            ),
+            WalletCategoryEntity(
+                id = "cat-card",
+                name = "Card payment",
+                systemId = null,
+                parentId = "cat-fin",
+                color = null,
+                cachedAt = 0,
+            )
+        )
+
+        val guessed = MerchantCategoryGuesser.guess("uber 120", categories)
+        assertEquals("cat-trans", guessed)
+    }
 }
