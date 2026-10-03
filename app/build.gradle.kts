@@ -42,8 +42,8 @@ android {
         // Bump on every release: Android compares versionCode, not versionName, so shipping a
         // new APK on the old code makes it the "same version" and it will not install as an
         // upgrade over an existing install.
-        versionCode = 11
-        versionName = "0.8.2"
+        versionCode = 12
+        versionName = "0.8.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
