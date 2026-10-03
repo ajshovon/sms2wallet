@@ -13,10 +13,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import javax.crypto.AEADBadTagException
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
+import javax.crypto.IllegalBlockSizeException
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -118,12 +122,24 @@ class SecureTokenStore(
             String(cipher.doFinal(ciphertext), Charsets.UTF_8)
         } catch (e: KeyPermanentlyInvalidatedException) {
             clearAndReturnNull(key)
+        } catch (e: AEADBadTagException) {
+            // GCM authentication failed: this blob will never decrypt under the current key,
+            // so keeping it would leave hasToken reporting a credential that can never be read.
+            clearAndReturnNull(key)
+        } catch (e: BadPaddingException) {
+            clearAndReturnNull(key)
+        } catch (e: IllegalBlockSizeException) {
+            clearAndReturnNull(key)
         } catch (e: GeneralSecurityException) {
-            // Transient Keystore or decryption error. Do NOT wipe the stored credentials,
-            // as temporary keystore glitches or service restarts should not delete user data.
+            // Everything else (Keystore unavailable, provider hiccup during a service restart)
+            // is transient: report absent for this read, but do NOT wipe a credential that will
+            // decrypt fine on the next attempt.
             null
         } catch (e: IllegalArgumentException) {
             clearAndReturnNull(key)
+        } catch (e: CancellationException) {
+            // Never swallow cancellation: it belongs to the calling coroutine, not to this read.
+            throw e
         } catch (e: Exception) {
             null
         }
