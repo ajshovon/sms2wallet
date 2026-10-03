@@ -69,15 +69,15 @@ class RoomIngestSink(
     private val debugLog: (String) -> Unit = { message -> Log.d(TAG, message) },
 ) : IngestSink {
 
-    override suspend fun accept(result: IngestResult, raw: RawSms) {
+    override suspend fun accept(result: IngestResult, raw: RawSms, notifyUser: Boolean) {
         when (result) {
-            is IngestResult.Parsed -> acceptParsed(result.transaction)
+            is IngestResult.Parsed -> acceptParsed(result.transaction, notifyUser)
             is IngestResult.Unmatched -> acceptUnmatched(result, raw)
             is IngestResult.Ignored -> Unit // Nothing to persist.
         }
     }
 
-    private suspend fun acceptParsed(parsedTransaction: ParsedTransaction) {
+    private suspend fun acceptParsed(parsedTransaction: ParsedTransaction, notifyUser: Boolean) {
         val mapping = resolveMapping(parsedTransaction)
 
         val pushState = resolveInitialPushState(parsedTransaction, mapping)
@@ -131,15 +131,18 @@ class RoomIngestSink(
             onQueued()
         }
 
-        // Tell the user either way: silently filing a transaction they never saw is exactly the
-        // behaviour that makes people distrust an app that touches their money.
-        onIngested(
-            insertedId,
-            parsedTransaction.merchant,
-            parsedTransaction.amount,
-            parsedTransaction.type.name,
-            !autoPushed,
-        )
+        // Tell the user when requested (e.g. for live incoming SMS, but not during bulk inbox scans):
+        // silently filing a transaction they never saw is confusing, but spambombing during historical
+        // scans is disastrous.
+        if (notifyUser) {
+            onIngested(
+                insertedId,
+                parsedTransaction.merchant,
+                parsedTransaction.amount,
+                parsedTransaction.type.name,
+                !autoPushed,
+            )
+        }
     }
 
     /**

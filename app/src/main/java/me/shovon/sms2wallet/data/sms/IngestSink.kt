@@ -8,7 +8,7 @@ package me.shovon.sms2wallet.data.sms
  * the database.
  */
 interface IngestSink {
-    suspend fun accept(result: IngestResult, raw: RawSms)
+    suspend fun accept(result: IngestResult, raw: RawSms, notifyUser: Boolean = false)
 }
 
 /**
@@ -17,7 +17,7 @@ interface IngestSink {
  * log [RawSms.body]/[RawSms.sender], since SMS content is user PII.
  */
 class NoOpIngestSink : IngestSink {
-    override suspend fun accept(result: IngestResult, raw: RawSms) {
+    override suspend fun accept(result: IngestResult, raw: RawSms, notifyUser: Boolean) {
         // Intentionally no-op until a persistence-backed IngestSink is bound in its place.
     }
 }

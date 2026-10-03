@@ -20,6 +20,7 @@ import me.shovon.sms2wallet.data.sms.RawSms
 import me.shovon.sms2wallet.data.sms.RoomIngestSink
 import me.shovon.sms2wallet.domain.model.PushState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,17 +42,15 @@ class RoomIngestSinkTest {
         categoryRuleDao: FakeCategoryRuleDao = FakeCategoryRuleDao(),
         unmatchedSmsDao: FakeUnmatchedSmsDao = FakeUnmatchedSmsDao(),
         autoPushBankNames: suspend () -> Set<String> = { emptySet() },
+        onIngested: (Long, String?, BigDecimal, String, Boolean) -> Unit = { _, _, _, _, _ -> },
     ) = RoomIngestSink(
         transactionDao = transactionDao,
         accountMappingDao = accountMappingDao,
         categoryRuleDao = categoryRuleDao,
         unmatchedSmsDao = unmatchedSmsDao,
         autoPushBankNames = autoPushBankNames,
-        // No synced categories in these tests, so the built-in merchant guesser stays inert and
-        // the expectations below are about the rule/mapping logic only.
         walletCategories = { emptyList() },
-        // The default debugLog hits android.util.Log, which is unmocked under plain JUnit (no
-        // Robolectric here) - use a no-op so exercising the dedup path doesn't crash the test.
+        onIngested = onIngested,
         debugLog = {},
     )
 
@@ -91,6 +90,26 @@ class RoomIngestSinkTest {
 
         assertEquals(1, transactionDao.rows.size)
         assertEquals(-1L, transactionDao.lastInsertResult)
+    }
+
+    @Test
+    fun `notifyUser flag determines whether onIngested notification callback is invoked`() = runTest {
+        var notified = false
+        val ingestSink = sink(
+            onIngested = { _, _, _, _, _ -> notified = true }
+        )
+
+        // Historical scan does not notify
+        ingestSink.accept(IngestResult.Parsed(sampleTransaction()), sampleRaw(), notifyUser = false)
+        assertFalse(notified)
+
+        // Live incoming SMS notifies
+        ingestSink.accept(
+            IngestResult.Parsed(sampleTransaction(amount = BigDecimal("100.00"))),
+            sampleRaw(timestamp = 2L),
+            notifyUser = true
+        )
+        assertTrue(notified)
     }
 
     // ---- 2. Unmapped is never QUEUED, even with auto-push enabled -------------
@@ -426,6 +445,37 @@ private class FakeTransactionDao : TransactionDao {
     override suspend fun update(transaction: TransactionEntity) {
         rows[transaction.id] = transaction
     }
+
+    override suspend fun findClaimedWalletRecordIdsByOthers(recordIds: List<String>, excludeId: Long): List<String> =
+        rows.values.filter { it.id != excludeId && it.walletRecordId in recordIds }.mapNotNull { it.walletRecordId }
+
+    override suspend fun findByWalletRecordId(walletRecordId: String): TransactionEntity? =
+        rows.values.firstOrNull { it.walletRecordId == walletRecordId }
+
+    override fun observeReviewQueueCount(
+        parsed: PushState,
+        failedRetryable: PushState,
+        failedPermanent: PushState,
+        needsVerify: PushState,
+    ): Flow<Int> = flowOf(rows.values.count {
+        it.pushState in setOf(parsed.name, failedRetryable.name, failedPermanent.name, needsVerify.name)
+    })
+
+    override suspend fun updateCategoryIfReviewable(
+        id: Long,
+        categoryId: String,
+        now: Long,
+        parsed: PushState,
+        failedRetryable: PushState,
+        failedPermanent: PushState,
+        needsVerify: PushState,
+    ): Int {
+        val row = rows[id] ?: return 0
+        val reviewable = setOf(parsed.name, failedRetryable.name, failedPermanent.name, needsVerify.name)
+        if (row.pushState !in reviewable) return 0
+        rows[id] = row.copy(walletCategoryId = categoryId, updatedAt = now)
+        return 1
+    }
 }
 
 /** In-memory fake of [AccountMappingDao]. */
@@ -499,6 +549,10 @@ private class FakeUnmatchedSmsDao : UnmatchedSmsDao {
 
     override suspend fun delete(sms: UnmatchedSmsEntity) {
         rows.removeAll { it.id == sms.id }
+    }
+
+    override suspend fun deleteBySender(sender: String) {
+        rows.removeAll { it.sender.trim().equals(sender.trim(), ignoreCase = true) }
     }
 
     override fun observeAll(): Flow<List<UnmatchedSmsEntity>> = flowOf(rows.toList())
