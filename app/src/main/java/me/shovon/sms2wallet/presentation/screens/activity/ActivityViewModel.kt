@@ -1,5 +1,8 @@
 package me.shovon.sms2wallet.presentation.screens.activity
 
+import me.shovon.bdparser.bank.BankParserFactory
+import me.shovon.sms2wallet.data.prefs.AppPreferences
+import me.shovon.sms2wallet.domain.model.SenderOverride
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,6 +13,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.push.PushScheduler
+import me.shovon.sms2wallet.data.repository.SmsScanRepository
 import me.shovon.sms2wallet.data.repository.ActivityRepository
 import me.shovon.sms2wallet.data.repository.TransactionRepository
 import me.shovon.sms2wallet.presentation.model.ActivityUiState
@@ -54,7 +58,30 @@ class ActivityViewModel @Inject constructor(
 @HiltViewModel
 class UnmatchedSmsViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
+    private val appPreferences: AppPreferences,
+    private val smsScanRepository: SmsScanRepository,
 ) : ViewModel() {
+
+    /** Providers a sender can be pointed at, for the "Assign" picker. */
+    val providerNames: List<String> = BankParserFactory.getAllParsers().map { it.getBankName() }
+
+    /**
+     * Teaches the app that [sender] belongs to [providerName].
+     *
+     * The unmatched rows already stored were recorded before the app knew, so they are cleared
+     * for that sender: the next inbox scan re-reads those messages and they will parse. Leaving
+     * them would show the user a permanent list of messages the app can now handle.
+     */
+    fun assignSender(sender: String, providerName: String) {
+        viewModelScope.launch {
+            appPreferences.addSenderOverride(SenderOverride(sender = sender, providerName = providerName))
+            activityRepository.deleteUnmatchedBySender(sender)
+            // Re-read the inbox so messages that arrived before the app knew this sender are
+            // parsed now. Ingest is de-duplicated on a hash of the message, so re-reading
+            // cannot produce a second copy of anything already stored.
+            smsScanRepository.scanInbox(fromScratch = true)
+        }
+    }
 
     init {
         viewModelScope.launch {

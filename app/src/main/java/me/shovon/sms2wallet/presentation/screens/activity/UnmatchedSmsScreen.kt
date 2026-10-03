@@ -1,5 +1,10 @@
 package me.shovon.sms2wallet.presentation.screens.activity
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import me.shovon.sms2wallet.presentation.components.SelectionSheet
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,7 +64,10 @@ fun UnmatchedSmsContent(
     state: UnmatchedSmsScreenUiState,
     onBack: () -> Unit,
     onDismiss: (String) -> Unit = {},
-    onTestInPlayground: (sender: String, body: String) -> Unit = { _, _ -> }
+    onTestInPlayground: (sender: String, body: String) -> Unit = { _, _ -> },
+    /** Provider names a sender can be pointed at; empty hides the action. */
+    providerNames: List<String> = emptyList(),
+    onAssignSender: (sender: String, providerName: String) -> Unit = { _, _ -> }
 ) {
     Sms2WalletScaffold(
         title = "Unmatched SMS",
@@ -123,7 +131,9 @@ fun UnmatchedSmsContent(
                     index = index,
                     count = state.items.size,
                     onDismiss = { onDismiss(item.id) },
-                    onTestInPlayground = { onTestInPlayground(item.sender, item.bodyPreview) }
+                    onTestInPlayground = { onTestInPlayground(item.sender, item.bodyPreview) },
+                    providerNames = providerNames,
+                    onAssignSender = { provider -> onAssignSender(item.sender, provider) }
                 )
             }
         }
@@ -136,7 +146,9 @@ private fun UnmatchedSmsRow(
     index: Int,
     count: Int,
     onDismiss: () -> Unit,
-    onTestInPlayground: () -> Unit
+    onTestInPlayground: () -> Unit,
+    providerNames: List<String>,
+    onAssignSender: (String) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
@@ -205,6 +217,39 @@ private fun UnmatchedSmsRow(
                     )
                     Spacer(Modifier.size(Spacing.xs))
                     Text("Copy")
+                }
+
+                if (providerNames.isNotEmpty()) {
+                    var pickerOpen by remember { mutableStateOf(false) }
+
+                    TextButton(
+                        onClick = { pickerOpen = true },
+                        modifier = Modifier.semantics {
+                            contentDescription = "Always treat ${item.sender} as a provider"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = SolarIcons.PublishedWithChanges,
+                            contentDescription = null,
+                            modifier = Modifier.size(IconSize.sm)
+                        )
+                        Spacer(Modifier.size(Spacing.xs))
+                        Text("Assign")
+                    }
+
+                    if (pickerOpen) {
+                        SelectionSheet(
+                            title = "Treat ${item.sender} as",
+                            options = providerNames,
+                            selected = null,
+                            searchPlaceholder = "Search providers",
+                            onSelect = { provider ->
+                                pickerOpen = false
+                                onAssignSender(provider)
+                            },
+                            onDismiss = { pickerOpen = false }
+                        )
+                    }
                 }
 
                 TextButton(

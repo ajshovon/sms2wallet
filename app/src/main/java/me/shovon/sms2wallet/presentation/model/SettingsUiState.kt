@@ -106,7 +106,17 @@ data class SettingsUiState(
     val accountMappings: List<AccountMappingRowUiState> = emptyList(),
     val reminders: ReminderSettingsUiState = ReminderSettingsUiState(),
     val intelligence: IntelligenceUiState = IntelligenceUiState(),
-    val learnedCategories: List<LearnedCategoryUiState> = emptyList()
+    val learnedCategories: List<LearnedCategoryUiState> = emptyList(),
+    val senderOverrides: List<SenderOverrideUiState> = emptyList()
+)
+
+/**
+ * One sender ID the user has pointed at a provider, after Mobile Number Portability stripped
+ * the bank's masked sender.
+ */
+data class SenderOverrideUiState(
+    val sender: String,
+    val providerName: String
 )
 
 /**

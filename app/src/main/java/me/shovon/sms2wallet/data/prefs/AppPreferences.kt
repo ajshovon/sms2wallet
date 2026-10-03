@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.map
 import me.shovon.bdparser.bank.BankParser
 import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.IntelligenceSettings
+import me.shovon.sms2wallet.domain.model.SenderOverride
 import me.shovon.sms2wallet.domain.model.ThemeMode
 import me.shovon.bdparser.bank.BankParserFactory
 import me.shovon.bdparser.bank.BankParserRegistry
@@ -78,6 +79,48 @@ class AppPreferences(
 
     /** A [BankParserRegistry] scoped to the currently-enabled parsers only. */
     suspend fun enabledParserRegistry(): BankParserRegistry = BankParserRegistry(enabledParsers())
+
+    // ------------------------------------------------------------------
+    // Sender overrides (Mobile Number Portability)
+    // ------------------------------------------------------------------
+
+    /** Sender IDs the user has taught the app to route to a specific provider. */
+    val senderOverrides: Flow<List<SenderOverride>> = safeData.map { prefs ->
+        prefs[SENDER_OVERRIDES_KEY].orEmpty().mapNotNull(SenderOverride::decode).sortedBy { it.sender }
+    }
+
+    /**
+     * Snapshot as a lookup keyed by normalised sender.
+     *
+     * Read once per scan rather than per message, the same way [enabledParsers] is: a backfill
+     * runs this over the whole inbox.
+     */
+    suspend fun senderOverrideMap(): Map<String, String> =
+        senderOverrides.first().associate { SenderOverride.normalise(it.sender) to it.providerName }
+
+    /** Replaces any existing entry for the same sender, so one sender maps to one provider. */
+    suspend fun addSenderOverride(override: SenderOverride) {
+        val normalised = SenderOverride.normalise(override.sender)
+        if (normalised.isEmpty()) return
+        dataStore.edit { prefs ->
+            val kept = prefs[SENDER_OVERRIDES_KEY].orEmpty()
+                .mapNotNull(SenderOverride::decode)
+                .filterNot { SenderOverride.normalise(it.sender) == normalised }
+            prefs[SENDER_OVERRIDES_KEY] =
+                (kept + override.copy(sender = normalised)).map(SenderOverride::encode).toSet()
+        }
+    }
+
+    suspend fun removeSenderOverride(sender: String) {
+        val normalised = SenderOverride.normalise(sender)
+        dataStore.edit { prefs ->
+            prefs[SENDER_OVERRIDES_KEY] = prefs[SENDER_OVERRIDES_KEY].orEmpty()
+                .mapNotNull(SenderOverride::decode)
+                .filterNot { SenderOverride.normalise(it.sender) == normalised }
+                .map(SenderOverride::encode)
+                .toSet()
+        }
+    }
 
     // ------------------------------------------------------------------
     // Daily reminder
@@ -225,6 +268,7 @@ class AppPreferences(
     private companion object {
         val ENABLED_PARSERS_KEY = stringSetPreferencesKey("enabled_parsers")
         val AUTO_PUSH_PARSERS_KEY = stringSetPreferencesKey("auto_push_parsers")
+        val SENDER_OVERRIDES_KEY = stringSetPreferencesKey("sender_overrides")
         val REMINDER_ENABLED_KEY = booleanPreferencesKey("reminder_enabled")
         val REMINDER_TIME_MINUTES_KEY = intPreferencesKey("reminder_time_minutes")
         val REMINDER_SUPPRESS_THRESHOLD_KEY = intPreferencesKey("reminder_suppress_threshold")

@@ -49,9 +49,11 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope.launch {
             try {
-                val enabledParsers = entryPoint.appPreferences().enabledParsers()
-                val result = entryPoint.smsParsingService().parse(enabledParsers, raw)
-                entryPoint.ingestSink().accept(result, raw)
+                val preferences = entryPoint.appPreferences()
+                val enabledParsers = preferences.enabledParsers()
+                val result = entryPoint.smsParsingService()
+                    .parse(enabledParsers, raw, preferences.senderOverrideMap())
+                entryPoint.ingestSink().accept(result, raw, notifyUser = true)
             } finally {
                 pendingResult.finish()
                 scope.cancel()

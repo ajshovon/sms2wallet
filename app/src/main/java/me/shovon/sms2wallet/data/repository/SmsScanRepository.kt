@@ -46,12 +46,14 @@ class SmsScanRepository @Inject constructor(
         // single logical pass, and re-reading preferences for every row would turn a large
         // backfill into thousands of DataStore reads.
         val enabledParsers = appPreferences.enabledParsers()
+        val senderOverrides = appPreferences.senderOverrideMap()
 
         var examined = 0
         var newestSeen = since
         smsInboxReader.readInboxSince(since).collect { raw ->
-            val result = smsParsingService.parse(enabledParsers, raw)
-            ingestSink.accept(result, raw)
+            val result = smsParsingService.parse(enabledParsers, raw, senderOverrides)
+            // Historical SMS backfill must not spam the user with notifications.
+            ingestSink.accept(result, raw, notifyUser = false)
             examined++
             // readInboxSince emits oldest-first, but don't rely on that for correctness: only
             // ever move the mark forward, so an out-of-order emission can't rewind it and cause

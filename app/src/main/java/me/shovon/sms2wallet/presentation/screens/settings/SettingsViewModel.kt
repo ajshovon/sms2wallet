@@ -31,6 +31,7 @@ import me.shovon.sms2wallet.presentation.model.AccountMappingRowUiState
 import me.shovon.sms2wallet.presentation.model.ConnectionStatus
 import me.shovon.sms2wallet.presentation.model.IntelligenceUiState
 import me.shovon.sms2wallet.presentation.model.LearnedCategoryUiState
+import me.shovon.sms2wallet.presentation.model.SenderOverrideUiState
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
@@ -151,8 +152,22 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private val baseWithLearned = combine(baseState, learnedCategories) { base, learned ->
-        base.copy(learnedCategories = learned)
+    private val baseWithLearned = combine(
+        baseState,
+        learnedCategories,
+        settingsRepository.senderOverrides,
+    ) { base, learned, overrides ->
+        base.copy(
+            learnedCategories = learned,
+            senderOverrides = overrides.map {
+                SenderOverrideUiState(sender = it.sender, providerName = it.providerName)
+            },
+        )
+    }
+
+    /** Forgets a taught sender; its messages go back to normal parser dispatch. */
+    fun removeSenderOverride(sender: String) {
+        viewModelScope.launch { settingsRepository.removeSenderOverride(sender) }
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(

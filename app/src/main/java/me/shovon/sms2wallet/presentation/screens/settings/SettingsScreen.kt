@@ -1,6 +1,7 @@
 package me.shovon.sms2wallet.presentation.screens.settings
 
 import me.shovon.sms2wallet.presentation.model.LearnedCategoryUiState
+import me.shovon.sms2wallet.presentation.model.SenderOverrideUiState
 import me.shovon.sms2wallet.presentation.components.groupedRowShape
 import android.os.Build
 import androidx.compose.animation.Crossfade
@@ -105,6 +106,7 @@ fun SettingsContent(
     onShareAccountNamesChange: (Boolean) -> Unit,
     onShareMerchantNamesChange: (Boolean) -> Unit,
     onDeleteLearnedCategory: (Long) -> Unit,
+    onRemoveSenderOverride: (String) -> Unit,
     onDefaultAccountChange: (String) -> Unit,
     onParserEnabledChange: (String, Boolean) -> Unit,
     onParserAutoPushChange: (String, Boolean) -> Unit,
@@ -243,6 +245,29 @@ fun SettingsContent(
                     onAutoPushChange = { onParserAutoPushChange(parserSetting.providerName, it) }
                 )
                 if (index < state.parserSettings.lastIndex) GroupedRowDivider()
+            }
+
+            if (state.senderOverrides.isNotEmpty()) {
+                item(key = "senders-header") {
+                    SectionHeader(
+                        title = "Sender IDs",
+                        supportingText = "Senders you have pointed at a provider, for when " +
+                            "number portability strips the bank's name.",
+                        modifier = Modifier.padding(top = Spacing.xl)
+                    )
+                }
+                itemsIndexed(
+                    items = state.senderOverrides,
+                    key = { _, override -> override.sender }
+                ) { index, override ->
+                    SenderOverrideRow(
+                        override = override,
+                        index = index,
+                        count = state.senderOverrides.size,
+                        onRemove = { onRemoveSenderOverride(override.sender) }
+                    )
+                    if (index < state.senderOverrides.lastIndex) GroupedRowDivider()
+                }
             }
 
             item(key = "mapping-header") {
@@ -771,6 +796,7 @@ private fun SettingsScreenLightPreview() {
             onShareAccountNamesChange = {},
             onShareMerchantNamesChange = {},
             onDeleteLearnedCategory = {},
+            onRemoveSenderOverride = {},
             onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
@@ -804,6 +830,7 @@ private fun SettingsScreenDarkPreview() {
             onShareAccountNamesChange = {},
             onShareMerchantNamesChange = {},
             onDeleteLearnedCategory = {},
+            onRemoveSenderOverride = {},
             onDefaultAccountChange = {},
             onParserEnabledChange = { _, _ -> },
             onParserAutoPushChange = { _, _ -> },
@@ -859,6 +886,53 @@ private fun LearnedCategoryRow(
                 Icon(
                     imageVector = SolarIcons.Close,
                     contentDescription = "Forget ${learned.keyword}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(IconSize.md)
+                )
+            }
+        }
+    }
+}
+
+/** One taught sender, with the way to undo it. */
+@Composable
+private fun SenderOverrideRow(
+    override: SenderOverrideUiState,
+    index: Int,
+    count: Int,
+    onRemove: () -> Unit
+) {
+    Surface(
+        shape = groupedRowShape(index, count),
+        color = groupedSurfaceColor()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = override.sender,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "Parsed as ${override.providerName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+            }
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = SolarIcons.Close,
+                    contentDescription = "Stop treating ${override.sender} as ${override.providerName}",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(IconSize.md)
                 )

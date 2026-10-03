@@ -9,6 +9,7 @@ import me.shovon.sms2wallet.data.local.entity.AccountMappingEntity
 import me.shovon.sms2wallet.data.local.entity.CategoryRuleEntity
 import me.shovon.sms2wallet.data.prefs.AppPreferences
 import me.shovon.sms2wallet.data.prefs.SecureTokenStore
+import me.shovon.sms2wallet.domain.model.SenderOverride
 import me.shovon.sms2wallet.domain.model.AccentColor
 import me.shovon.sms2wallet.domain.model.ThemeMode
 
@@ -61,6 +62,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setThemeMode(mode: ThemeMode) = appPreferences.setThemeMode(mode)
 
     val accentColor: Flow<AccentColor> = appPreferences.accentColor
+
+    /** Sender IDs the user has taught the app to route to a specific provider. */
+    val senderOverrides: Flow<List<SenderOverride>> = appPreferences.senderOverrides
+
+    suspend fun removeSenderOverride(sender: String) = appPreferences.removeSenderOverride(sender)
     suspend fun setAccentColor(accent: AccentColor) = appPreferences.setAccentColor(accent)
 
     // ---- First-run coaching ---------------------------------------------------

@@ -224,6 +224,7 @@ fun Sms2WalletRootScreen(
                         onShareAccountNamesChange = viewModel::setShareAccountNames,
                     onShareMerchantNamesChange = viewModel::setShareMerchantNames,
                     onDeleteLearnedCategory = viewModel::deleteLearnedCategory,
+                    onRemoveSenderOverride = viewModel::removeSenderOverride,
                         onDefaultAccountChange = viewModel::setDefaultAccount,
                         onParserEnabledChange = viewModel::setParserEnabled,
                         onParserAutoPushChange = viewModel::setParserAutoPush,
@@ -256,7 +257,9 @@ fun Sms2WalletRootScreen(
                         navController.navigate(
                             Sms2WalletDestination.ParserPlayground.createRoute(sender, body)
                         )
-                    }
+                    },
+                    providerNames = viewModel.providerNames,
+                    onAssignSender = viewModel::assignSender
                 )
             }
             composable(

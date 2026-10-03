@@ -41,6 +41,10 @@ interface UnmatchedSmsDao {
     )
     suspend fun deleteById(id: Long)
 
+    /** Clears every stored row from one sender, after the user teaches the app what it is. */
+    @Query("DELETE FROM unmatched_sms WHERE UPPER(TRIM(sender)) = UPPER(TRIM(:sender))")
+    suspend fun deleteBySender(sender: String)
+
     @Query(
         """
         DELETE FROM unmatched_sms

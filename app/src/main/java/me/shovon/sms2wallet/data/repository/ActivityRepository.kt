@@ -22,6 +22,8 @@ class ActivityRepository @Inject constructor(
 
     suspend fun cleanDuplicates() = unmatchedSmsDao.deleteDuplicates()
 
+    suspend fun deleteUnmatchedBySender(sender: String) = unmatchedSmsDao.deleteBySender(sender)
+
     private companion object {
         const val RECENT_LOG_LIMIT = 200
     }
