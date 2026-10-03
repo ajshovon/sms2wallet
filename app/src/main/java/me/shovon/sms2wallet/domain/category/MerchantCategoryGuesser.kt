@@ -87,7 +87,7 @@ object MerchantCategoryGuesser {
         if (needle.isEmpty() || assignable.isEmpty()) return null
 
         val rule = RULES.firstOrNull { rule ->
-            rule.merchants.any { needle.contains(it) }
+            rule.merchants.any { matches(needle, it) }
         } ?: return null
 
         // Hints are ordered by preference, so the first hint that matches any of the user's
@@ -98,6 +98,25 @@ object MerchantCategoryGuesser {
         }
         return null
     }
+
+    /**
+     * Keywords short or generic enough to turn up inside an unrelated word: "bus" in
+     * "business", "cab" in "cable tv", "bar" in "Barishal", "tea" in "teachers". A bank's
+     * merchant string is full of branch and company names, and a guess here is attached to an
+     * auto-pushed transaction without anyone seeing it first, so these match as whole words
+     * (with an optional plural) instead of as substrings.
+     *
+     * Everything else still matches as a substring, which is what lets "grocer" catch
+     * "groceries" and "pharma" catch "pharmacy".
+     */
+    private val WHOLE_WORD_KEYWORDS: Map<String, Regex> = listOf(
+        "bar", "bill", "bus", "cab", "cloth", "course", "dress", "drink", "fare", "food",
+        "income", "market", "meal", "metro", "pant", "ride", "shoe", "shop", "snack", "store",
+        "sweet", "tea", "train", "wage",
+    ).associateWith { Regex("\\b${Regex.escape(it)}s?\\b") }
+
+    private fun matches(needle: String, keyword: String): Boolean =
+        WHOLE_WORD_KEYWORDS[keyword]?.containsMatchIn(needle) ?: needle.contains(keyword)
 
     private data class Rule(
         val merchants: List<String>,
