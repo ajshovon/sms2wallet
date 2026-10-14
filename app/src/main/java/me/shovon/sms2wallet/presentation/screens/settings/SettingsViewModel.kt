@@ -35,6 +35,7 @@ import me.shovon.sms2wallet.presentation.model.LearnedCategoryUiState
 import me.shovon.sms2wallet.presentation.model.SenderOverrideUiState
 import me.shovon.sms2wallet.presentation.model.ParserSettingUiState
 import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
+import me.shovon.sms2wallet.presentation.model.SERVER_STILL_SYNCING_NOTE
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
 import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
@@ -341,12 +342,14 @@ class SettingsViewModel @Inject constructor(
     fun syncWalletData() {
         if (syncState.value.isSyncing) return
         viewModelScope.launch {
-            syncState.value = syncState.value.copy(isSyncing = true, errorMessage = null)
+            syncState.value = syncState.value.copy(isSyncing = true, errorMessage = null, note = null)
+            var note: String? = null
             val message = when (val result = walletSyncRepository.refreshAll()) {
                 is ApiResult.Success -> {
                     // A successful sync is itself proof the token works, so don't leave the
                     // connection status above it contradicting that with "Not tested yet".
                     connectionState.value = connectionState.value.copy(status = ConnectionStatus.Success)
+                    if (result.serverStillSyncing) note = SERVER_STILL_SYNCING_NOTE
                     null
                 }
                 is ApiResult.Unauthorized -> {
@@ -362,7 +365,7 @@ class SettingsViewModel @Inject constructor(
                 is ApiResult.HttpError -> "Wallet returned an error (${result.status})."
                 is ApiResult.InvalidRequest -> result.message
             }
-            syncState.value = syncState.value.copy(isSyncing = false, errorMessage = message)
+            syncState.value = syncState.value.copy(isSyncing = false, errorMessage = message, note = note)
         }
     }
 

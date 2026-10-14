@@ -149,9 +149,17 @@ fun Sms2WalletRootScreen(
             composable(Sms2WalletDestination.Dashboard.route) {
                 val viewModel: DashboardViewModel = hiltViewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val snackbarHostState = remember { SnackbarHostState() }
+
+                // Says what a pull-to-refresh actually fetched, or why it fetched nothing.
+                LaunchedEffect(viewModel) {
+                    viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+
                 Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomBarHeight)) {
                     DashboardScreen(
                         state = state,
+                        snackbarHostState = snackbarHostState,
                         onRefresh = viewModel::pullRefresh,
                         onAddCashExpense = {
                             navController.navigate(Sms2WalletDestination.AddCashExpense.createRoute()) {

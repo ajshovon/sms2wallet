@@ -95,10 +95,12 @@ fun DashboardScreen(
     onOpenUnmatchedSms: () -> Unit = {},
     onQuickAddInputChange: (String) -> Unit = {},
     onQuickAddSubmit: () -> Unit = {},
-    onManageFeeWaivers: () -> Unit = {}
+    onManageFeeWaivers: () -> Unit = {},
+    snackbarHostState: androidx.compose.material3.SnackbarHostState? = null
 ) {
     Sms2WalletScaffold(
-        title = "Dashboard"
+        title = "Dashboard",
+        snackbarHostState = snackbarHostState
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,

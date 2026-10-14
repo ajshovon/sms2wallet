@@ -40,6 +40,10 @@ class WalletSyncRepository @Inject constructor(
      * Accounts are fetched first and a failure short-circuits: if the connection is already
      * broken, spending a second request to prove it again is wasteful, and reporting the first
      * real error is more useful than the second.
+     *
+     * The returned [ApiResult.Success.serverStillSyncing] is set when either list came back while
+     * BudgetBakers was still applying recent changes from the Wallet app - the cache is updated
+     * either way, but an account created moments ago may not be in it yet.
      */
     suspend fun refreshAll(): ApiResult<Unit> {
         val accounts = refreshAccounts()
@@ -49,7 +53,11 @@ class WalletSyncRepository @Inject constructor(
         if (categories !is ApiResult.Success) return categories
 
         appPreferences.setLastCatalogueSyncAt(System.currentTimeMillis())
-        return ApiResult.Success(Unit, categories.rateLimit)
+        return ApiResult.Success(
+            data = Unit,
+            rateLimit = categories.rateLimit,
+            serverStillSyncing = accounts.serverStillSyncing || categories.serverStillSyncing,
+        )
     }
 
     val accounts: Flow<List<WalletAccountEntity>> = walletAccountDao.observeAll()
@@ -67,7 +75,7 @@ class WalletSyncRepository @Inject constructor(
                 val now = System.currentTimeMillis()
                 walletAccountDao.clearAll()
                 walletAccountDao.upsertAll(result.data.map { it.toEntity(now) })
-                ApiResult.Success(Unit, result.rateLimit)
+                ApiResult.Success(Unit, result.rateLimit, result.serverStillSyncing)
             }
             is ApiResult.Unauthorized -> result
             is ApiResult.SyncInProgress -> result
@@ -84,7 +92,7 @@ class WalletSyncRepository @Inject constructor(
                 val now = System.currentTimeMillis()
                 walletCategoryDao.clearAll()
                 walletCategoryDao.upsertAll(result.data.map { it.toEntity(now) })
-                ApiResult.Success(Unit, result.rateLimit)
+                ApiResult.Success(Unit, result.rateLimit, result.serverStillSyncing)
             }
             is ApiResult.Unauthorized -> result
             is ApiResult.SyncInProgress -> result

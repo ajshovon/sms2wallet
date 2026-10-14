@@ -266,6 +266,63 @@ class KtorWalletApiClientTest {
         assertEquals(2, requestCount)
     }
 
+    // ---- Server-side sync lag --------------------------------------------------
+
+    @Test
+    fun `listAccounts reports a server still applying recent changes`() = runTest {
+        // Wallet answers with valid data but X-Sync-In-Progress: true while changes made in the
+        // app are still being applied - an account created moments ago may be missing.
+        val engine = MockEngine {
+            jsonResponse(
+                """{"accounts":[{"id":"a1"}],"limit":200,"offset":0}""",
+                HttpStatusCode.OK,
+                extraHeaders = listOf("X-Sync-In-Progress" to "true"),
+            )
+        }
+
+        val result = clientWith(engine).listAccounts() as ApiResult.Success
+
+        assertTrue(result.serverStillSyncing)
+        assertEquals(listOf("a1"), result.data.map { it.id })
+    }
+
+    @Test
+    fun `any page saying it is still syncing marks the whole list`() = runTest {
+        val engine = MockEngine { request ->
+            val offset = request.url.parameters["offset"]?.toInt() ?: 0
+            if (offset == 0) {
+                val firstPage = (1..200).joinToString(",") { """{"id":"c$it"}""" }
+                jsonResponse("""{"categories":[$firstPage],"limit":200,"offset":0}""", HttpStatusCode.OK)
+            } else {
+                jsonResponse(
+                    """{"categories":[{"id":"c201"}],"limit":200,"offset":200}""",
+                    HttpStatusCode.OK,
+                    extraHeaders = listOf("X-Sync-In-Progress" to "true"),
+                )
+            }
+        }
+
+        val result = clientWith(engine).listCategories() as ApiResult.Success
+
+        assertTrue(result.serverStillSyncing)
+        assertEquals(201, result.data.size)
+    }
+
+    @Test
+    fun `a list without the header is not marked as still syncing`() = runTest {
+        val engine = MockEngine {
+            jsonResponse(
+                """{"accounts":[{"id":"a1"}],"limit":200,"offset":0}""",
+                HttpStatusCode.OK,
+                extraHeaders = listOf("X-Sync-In-Progress" to "false"),
+            )
+        }
+
+        val result = clientWith(engine).listAccounts() as ApiResult.Success
+
+        assertFalse(result.serverStillSyncing)
+    }
+
     // ---- Pagination against the real response shape ------------------------
 
     @Test

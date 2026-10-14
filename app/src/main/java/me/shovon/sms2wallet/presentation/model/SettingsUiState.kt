@@ -70,7 +70,9 @@ data class WalletCatalogueUiState(
     /** Relative label, e.g. "2 minutes ago"; null when never synced. */
     val lastSyncedLabel: String? = null,
     val isSyncing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** A non-error remark on the last sync, e.g. that Wallet was still processing recent changes. */
+    val note: String? = null
 )
 
 /**

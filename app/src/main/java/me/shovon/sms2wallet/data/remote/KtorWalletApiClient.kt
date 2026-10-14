@@ -45,6 +45,9 @@ import me.shovon.sms2wallet.data.remote.dto.WalletCategoryDto
 
 private const val DEFAULT_BASE_URL = "https://rest.budgetbakers.com/wallet/v1/api"
 private const val ACCOUNTS_PAGE_LIMIT = 200
+
+/** Set to `true` while BudgetBakers is still applying recent changes made in the Wallet app. */
+private const val SYNC_IN_PROGRESS_HEADER = "X-Sync-In-Progress"
 private const val CATEGORIES_PAGE_LIMIT = 200
 private const val RECORDS_SEARCH_LIMIT = 50
 private const val MIN_CREATE_BATCH = 1
@@ -206,6 +209,8 @@ class KtorWalletApiClient(
         val accumulated = mutableListOf<T>()
         var offset = 0
         var latestRateLimit: RateLimitInfo? = null
+        // Any page saying so means the list as a whole may be missing a recent change.
+        var serverStillSyncing = false
 
         while (true) {
             val outcome = executeRaw {
@@ -220,6 +225,7 @@ class KtorWalletApiClient(
                 is RawOutcome.Failure -> return outcome.result
                 is RawOutcome.Ok -> {
                     latestRateLimit = outcome.rateLimit ?: latestRateLimit
+                    serverStillSyncing = serverStillSyncing || outcome.serverStillSyncing
                     val page = try {
                         parseListPayload(outcome.bodyText, itemSerializer, arrayKey)
                     } catch (e: SerializationException) {
@@ -242,7 +248,7 @@ class KtorWalletApiClient(
             }
         }
 
-        return ApiResult.Success(accumulated, latestRateLimit)
+        return ApiResult.Success(accumulated, latestRateLimit, serverStillSyncing)
     }
 
     /**
@@ -309,7 +315,12 @@ class KtorWalletApiClient(
     // ---- Raw request/response handling -----------------------------------
 
     private sealed class RawOutcome {
-        data class Ok(val status: HttpStatusCode, val bodyText: String, val rateLimit: RateLimitInfo?) : RawOutcome()
+        data class Ok(
+            val status: HttpStatusCode,
+            val bodyText: String,
+            val rateLimit: RateLimitInfo?,
+            val serverStillSyncing: Boolean = false,
+        ) : RawOutcome()
         data class Failure(val result: ApiResult<Nothing>) : RawOutcome()
     }
 
@@ -387,7 +398,12 @@ class KtorWalletApiClient(
                 ApiResult.RateLimited(response.headers[HttpHeaders.RetryAfter]?.toIntOrNull()),
             )
             else -> if (response.status.value in 200..299) {
-                RawOutcome.Ok(response.status, bodyText, rateLimit)
+                RawOutcome.Ok(
+                    status = response.status,
+                    bodyText = bodyText,
+                    rateLimit = rateLimit,
+                    serverStillSyncing = response.headers[SYNC_IN_PROGRESS_HEADER].equals("true", ignoreCase = true),
+                )
             } else {
                 RawOutcome.Failure(ApiResult.HttpError(response.status.value, bodyText.take(500)))
             }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.remote.ApiResult
@@ -27,6 +29,7 @@ import me.shovon.sms2wallet.presentation.model.DashboardUiState
 import me.shovon.sms2wallet.presentation.model.QuickAddUiState
 import me.shovon.sms2wallet.presentation.model.RateLimitUiState
 import me.shovon.sms2wallet.presentation.model.TokenHealth
+import me.shovon.sms2wallet.presentation.model.catalogueSyncMessage
 import me.shovon.sms2wallet.presentation.model.toUiState
 import me.shovon.sms2wallet.presentation.util.TimeFormatter
 
@@ -54,14 +57,22 @@ class DashboardViewModel @Inject constructor(
 
     private val quickAddState = MutableStateFlow(QuickAddUiState())
 
+    /**
+     * One-shot results of a pull-to-refresh ("Synced 4 accounts and 38 categories"). A pull used
+     * to finish silently whether or not anything was fetched, so a sync that failed - or came back
+     * without an account just created in Wallet - looked exactly like one that worked.
+     */
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages: Flow<String> = _messages.receiveAsFlow()
+
     private val baseState: Flow<DashboardUiState> = combine(
         transactionRepository.observePushedTodayCount(),
         transactionRepository.observePushedThisWeekCount(),
         transactionRepository.observeReviewQueueCount(),
-        combine(
-            settingsRepository.lastScannedTimestamp,
-            settingsRepository.lastCatalogueSyncAt,
-        ) { scanned, catalogue -> maxOf(scanned, catalogue) },
+        // The Wallet sync alone. This used to take the later of that and the newest SMS read, so
+        // any incoming SMS made the card read "Updated just now" while the accounts it lists had
+        // not been fetched in days - hiding exactly the staleness this label exists to show.
+        settingsRepository.lastCatalogueSyncAt,
         combine(remoteState, isRefreshingState) { remote, refreshing -> remote to refreshing },
     ) { pushedToday, pushedThisWeek, pendingReview, lastSyncTime, (remote, refreshing) ->
         DashboardUiState(
@@ -161,11 +172,13 @@ class DashboardViewModel @Inject constructor(
             try {
                 if (!settingsRepository.hasToken.first()) {
                     remoteState.value = RemoteState(tokenHealth = TokenHealth.UNKNOWN, isLoading = false)
+                    if (isPullToRefresh) _messages.send("Connect your Wallet token in Settings to sync accounts.")
                     return@launch
                 }
                 remoteState.value = remoteState.value.copy(isLoading = true)
 
-                val health = when (walletApiClient.validateToken()) {
+                val validation = walletApiClient.validateToken()
+                val health = when (validation) {
                     is ApiResult.Success -> TokenHealth.VALID
                     is ApiResult.Unauthorized -> TokenHealth.INVALID
                     // A token's first use legitimately returns 409 while BudgetBakers builds the
@@ -181,7 +194,21 @@ class DashboardViewModel @Inject constructor(
                 // the number the user came here to read.
                 val neverSynced = settingsRepository.lastCatalogueSyncAt.first() == 0L
                 if (health == TokenHealth.VALID && (isPullToRefresh || neverSynced)) {
-                    walletSyncRepository.refreshAll()
+                    val result = walletSyncRepository.refreshAll()
+                    if (isPullToRefresh) {
+                        _messages.send(
+                            catalogueSyncMessage(
+                                result = result,
+                                accountCount = walletSyncRepository.accounts.first().size,
+                                categoryCount = walletSyncRepository.categories.first().size,
+                            )
+                        )
+                    }
+                } else if (isPullToRefresh) {
+                    // The token check already failed, so report its actual reason - rate limited,
+                    // offline, rejected - rather than spending more of the hourly budget proving it
+                    // again, or flattening every failure into one vague message.
+                    _messages.send(catalogueSyncMessage(validation, accountCount = 0, categoryCount = 0))
                 }
 
                 val budget = when (val usage = walletApiClient.usageStats()) {

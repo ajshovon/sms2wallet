@@ -20,8 +20,18 @@ package me.shovon.sms2wallet.data.remote
  */
 sealed class ApiResult<out T> {
 
-    /** The call completed and the (possibly nested-partial, see [WalletApiClient.createRecords]) body was parsed. */
-    data class Success<T>(val data: T, val rateLimit: RateLimitInfo?) : ApiResult<T>()
+    /**
+     * The call completed and the (possibly nested-partial, see [WalletApiClient.createRecords]) body was parsed.
+     *
+     * [serverStillSyncing] mirrors the `X-Sync-In-Progress` response header: the data is valid,
+     * but BudgetBakers is still applying recent changes from the Wallet app, so something the
+     * user just created there may be missing from it.
+     */
+    data class Success<T>(
+        val data: T,
+        val rateLimit: RateLimitInfo?,
+        val serverStillSyncing: Boolean = false,
+    ) : ApiResult<T>()
 
     /** HTTP 401: the token is missing, malformed, expired, or revoked. */
     data object Unauthorized : ApiResult<Nothing>()
