@@ -126,8 +126,16 @@ class IntelligenceRepository @Inject constructor(
      *
      * Merchants a suggestion could not be found for are simply absent from the result. The
      * caller leaves those fields as they were rather than filling them with a guess.
+     *
+     * [typedByUser] marks names the user typed into a feature that sends them, as quick add
+     * sends its phrase. The "merchant names from SMS" switch guards what the app read from the
+     * user's messages, not what they wrote themselves, so it does not apply to those - but the
+     * category list still goes to Google, so category-name sharing still does.
      */
-    suspend fun suggestCategories(subjects: List<CategorySubject>): CategorySuggestions {
+    suspend fun suggestCategories(
+        subjects: List<CategorySubject>,
+        typedByUser: Boolean = false,
+    ): CategorySuggestions {
         if (subjects.isEmpty()) return CategorySuggestions.Success(emptyMap(), usedAi = false)
 
         val current = settings.first()
@@ -151,7 +159,14 @@ class IntelligenceRepository @Inject constructor(
         }
 
         if (unresolved.isEmpty()) return CategorySuggestions.Success(resolved, usedAi = false)
-        if (!current.shareMerchantNames) {
+        if (typedByUser && !current.shareCategoryNames) {
+            return CategorySuggestions.Success(
+                categoryIdByTransactionId = resolved,
+                usedAi = false,
+                note = "Turn on category-name sharing in Settings to let Gemini try the rest.",
+            )
+        }
+        if (!typedByUser && !current.shareMerchantNames) {
             // The rest would need the merchant names sent off the device, which the user has
             // not agreed to. Whatever was resolved locally still stands.
             return CategorySuggestions.Success(

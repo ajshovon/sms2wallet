@@ -80,8 +80,8 @@ import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.StandardEasing
 
 /**
- * Home tab: today/this-week push counters, pending review count, quick actions, card
- * fee-waiver progress, last sync time, token health, and the Wallet API rate-limit budget.
+ * Home tab: today/this-week push counters, pending review count, quick actions, the way into
+ * logging several entries at once, card fee-waiver progress, last sync time, token health, and the Wallet API rate-limit budget.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +96,7 @@ fun DashboardScreen(
     onQuickAddInputChange: (String) -> Unit = {},
     onQuickAddSubmit: () -> Unit = {},
     onManageFeeWaivers: () -> Unit = {},
+    onOpenBulkEntry: () -> Unit = {},
     snackbarHostState: androidx.compose.material3.SnackbarHostState? = null
 ) {
     Sms2WalletScaffold(
@@ -158,6 +159,13 @@ fun DashboardScreen(
                     PendingReviewCard(
                         pendingCount = state.pendingReviewCount,
                         onClick = onViewReviewQueue,
+                        modifier = Modifier.padding(top = Spacing.md)
+                    )
+                }
+
+                item(key = "bulk-entry") {
+                    BulkEntryCard(
+                        onClick = onOpenBulkEntry,
                         modifier = Modifier.padding(top = Spacing.md)
                     )
                 }
@@ -561,6 +569,64 @@ private fun PendingReviewCard(
                     modifier = Modifier.size(IconSize.md)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Way into "Log several", for the end of the day when cash spending is caught up in one go.
+ * The example in the subtitle is the format, so it doubles as the instructions.
+ */
+@Composable
+private fun BulkEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { role = Role.Button },
+        shape = MaterialTheme.shapes.large,
+        color = groupedSurfaceColor()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = SolarIcons.Receipt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(IconSize.lg)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Log the day's spending",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Type several at once: uber 120, tea 20",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+            }
+            Icon(
+                imageVector = SolarIcons.CaretRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(IconSize.md)
+            )
         }
     }
 }

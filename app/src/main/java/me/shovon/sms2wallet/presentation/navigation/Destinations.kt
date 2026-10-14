@@ -26,6 +26,7 @@ sealed class Sms2WalletDestination(val route: String) {
 
     data object UnmatchedSms : Sms2WalletDestination("activity/unmatched_sms")
     data object FeeWaivers : Sms2WalletDestination("settings/fee_waivers")
+    data object BulkEntry : Sms2WalletDestination("bulk_entry")
     data object ParserPlayground : Sms2WalletDestination(
         "settings/parser_playground?" +
             "$ARG_SENDER={$ARG_SENDER}" +

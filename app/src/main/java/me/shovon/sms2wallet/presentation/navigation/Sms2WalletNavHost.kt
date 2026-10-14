@@ -84,6 +84,8 @@ import me.shovon.sms2wallet.presentation.screens.activity.ActivityViewModel
 import me.shovon.sms2wallet.presentation.screens.activity.UnmatchedSmsContent
 import me.shovon.sms2wallet.presentation.screens.activity.UnmatchedSmsViewModel
 import me.shovon.sms2wallet.presentation.screens.addexpense.AddCashExpenseScreen
+import me.shovon.sms2wallet.presentation.screens.bulkentry.BulkEntryScreen
+import me.shovon.sms2wallet.presentation.screens.bulkentry.BulkEntryViewModel
 import me.shovon.sms2wallet.presentation.screens.dashboard.DashboardScreen
 import me.shovon.sms2wallet.presentation.screens.dashboard.DashboardViewModel
 import me.shovon.sms2wallet.presentation.screens.playground.ParserPlaygroundScreen
@@ -98,13 +100,15 @@ import me.shovon.sms2wallet.presentation.screens.settings.SettingsViewModel
 /**
  * App root: a bottom-navigation [Scaffold] hosting the four top-level tabs, plus a [NavHost]
  * for detail routes pushed on top of them (transaction detail, add-cash-expense, parser
- * playground, unmatched SMS, card fee waivers).
+ * playground, unmatched SMS, card fee waivers, log several).
  */
 @Composable
 fun Sms2WalletRootScreen(
     navController: NavHostController = rememberNavController(),
     openTransactionId: Long? = null,
     onTransactionOpened: () -> Unit = {},
+    openBulkEntry: Boolean = false,
+    onBulkEntryOpened: () -> Unit = {},
 ) {
     // Navigate straight to the transaction a notification was tapped for. Keyed on the id so it
     // fires once per notification and not again on every recomposition.
@@ -112,6 +116,13 @@ fun Sms2WalletRootScreen(
         val id = openTransactionId ?: return@LaunchedEffect
         navController.navigate(Sms2WalletDestination.TransactionDetail.createRoute(id.toString()))
         onTransactionOpened()
+    }
+
+    // The day-end reminder opens "Log several" directly; once, not on every recomposition.
+    LaunchedEffect(openBulkEntry) {
+        if (!openBulkEntry) return@LaunchedEffect
+        navController.navigate(Sms2WalletDestination.BulkEntry.route) { launchSingleTop = true }
+        onBulkEntryOpened()
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -172,6 +183,9 @@ fun Sms2WalletRootScreen(
                         onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
                         onQuickAddInputChange = viewModel::onQuickAddInputChange,
                         onManageFeeWaivers = { navController.navigate(Sms2WalletDestination.FeeWaivers.route) },
+                        onOpenBulkEntry = {
+                            navController.navigate(Sms2WalletDestination.BulkEntry.route) { launchSingleTop = true }
+                        },
                         onQuickAddSubmit = {
                             viewModel.submitQuickAdd { prefill ->
                                 navController.navigate(
@@ -267,6 +281,23 @@ fun Sms2WalletRootScreen(
                     onBack = { navController.popBackStack() },
                     onSave = viewModel::save,
                     onRemove = viewModel::remove
+                )
+            }
+            composable(Sms2WalletDestination.BulkEntry.route) {
+                val viewModel: BulkEntryViewModel = hiltViewModel()
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                BulkEntryScreen(
+                    state = state,
+                    onBack = { navController.popBackStack() },
+                    onInputChange = viewModel::onInputChange,
+                    onRead = viewModel::read,
+                    onRowMerchantChange = viewModel::onRowMerchantChange,
+                    onRowAmountChange = viewModel::onRowAmountChange,
+                    onRowCategoryChange = viewModel::onRowCategoryChange,
+                    onRowRemove = viewModel::onRowRemove,
+                    onAccountChange = viewModel::onAccountChange,
+                    onDateChange = viewModel::onDateChange,
+                    onSave = { viewModel.save { navController.popBackStack() } }
                 )
             }
             composable(Sms2WalletDestination.UnmatchedSms.route) {

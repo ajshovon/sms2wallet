@@ -89,9 +89,9 @@ class TransactionNotifier @Inject constructor(
             .setContentTitle("Daily Spending Reminder")
             .setContentText(
                 if (todayCount > 0) {
-                    "You've recorded $todayCount transaction${if (todayCount == 1) "" else "s"} today. Any cash expenses to log?"
+                    "You've recorded $todayCount transaction${if (todayCount == 1) "" else "s"} today. Any cash expenses to log? Tap to add them all at once."
                 } else {
-                    "Have any cash expenses to log today?"
+                    "Have any cash expenses to log today? Tap to add them all at once."
                 }
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -100,8 +100,11 @@ class TransactionNotifier @Inject constructor(
                 PendingIntent.getActivity(
                     context,
                     DAILY_REMINDER_NOTIFICATION_ID,
+                    // Straight to "Log several": the reminder is about catching up on the day's
+                    // cash, which is usually more than one thing.
                     Intent(context, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra(EXTRA_OPEN_BULK_ENTRY, true)
                     },
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
@@ -167,6 +170,7 @@ class TransactionNotifier @Inject constructor(
     companion object {
         /** Intent extra carrying the transaction a review notification should open. */
         const val EXTRA_REVIEW_TRANSACTION_ID = "review_transaction_id"
+        const val EXTRA_OPEN_BULK_ENTRY = "open_bulk_entry"
 
         private const val CHANNEL_REVIEW = "transactions_review"
         private const val CHANNEL_PUSHED = "transactions_pushed"

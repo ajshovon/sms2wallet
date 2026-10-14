@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
 
     private val themeViewModel: ThemeViewModel by viewModels()
     private val pendingReviewId = mutableStateOf<Long?>(null)
+    private val pendingBulkEntry = mutableStateOf(false)
 
     /**
      * The activity is `singleTop`-ish via CLEAR_TOP, so a notification tapped while the app is
@@ -39,11 +40,13 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         readReviewExtra(intent)?.let { pendingReviewId.value = it }
+        if (readBulkEntryExtra(intent)) pendingBulkEntry.value = true
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         pendingReviewId.value?.let { outState.putLong(KEY_PENDING_REVIEW_ID, it) }
+        outState.putBoolean(KEY_PENDING_BULK_ENTRY, pendingBulkEntry.value)
     }
 
     @Suppress("DEPRECATION")
@@ -55,6 +58,10 @@ class MainActivity : ComponentActivity() {
         }
         val savedId = savedInstanceState?.getLong(KEY_PENDING_REVIEW_ID, -1L)?.takeIf { it > 0 }
         pendingReviewId.value = savedId ?: readReviewExtra(intent)
+        // A recreated activity still carries the launching intent, so only a fresh launch reads
+        // it - otherwise rotating the screen would open "Log several" a second time.
+        pendingBulkEntry.value = savedInstanceState?.getBoolean(KEY_PENDING_BULK_ENTRY)
+            ?: readBulkEntryExtra(intent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -63,6 +70,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val currentPendingReviewId by pendingReviewId
+            val currentPendingBulkEntry by pendingBulkEntry
 
             val appearance by themeViewModel.appearance.collectAsStateWithLifecycle()
 
@@ -132,6 +140,8 @@ class MainActivity : ComponentActivity() {
                     Sms2WalletRootScreen(
                         openTransactionId = currentPendingReviewId,
                         onTransactionOpened = { pendingReviewId.value = null },
+                        openBulkEntry = currentPendingBulkEntry,
+                        onBulkEntryOpened = { pendingBulkEntry.value = false },
                     )
                 }
             }
@@ -140,7 +150,12 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val KEY_PENDING_REVIEW_ID = "pending_review_transaction_id"
+        const val KEY_PENDING_BULK_ENTRY = "pending_bulk_entry"
     }
+
+    /** True when the day-end reminder was tapped. */
+    private fun readBulkEntryExtra(intent: Intent?): Boolean =
+        intent?.getBooleanExtra(TransactionNotifier.EXTRA_OPEN_BULK_ENTRY, false) == true
 
     /** Reads the transaction id a review notification was built with, or null. */
     private fun readReviewExtra(intent: Intent?): Long? =
