@@ -36,6 +36,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.components.StatusBadge
 import me.shovon.sms2wallet.presentation.components.groupedSurfaceColor
 import me.shovon.sms2wallet.presentation.model.DashboardUiState
+import me.shovon.sms2wallet.presentation.model.FeeWaiverProgressUiState
 import me.shovon.sms2wallet.presentation.model.QuickAddUiState
 import me.shovon.sms2wallet.presentation.model.RateLimitUiState
 import me.shovon.sms2wallet.presentation.model.SampleData
@@ -78,8 +80,8 @@ import me.shovon.sms2wallet.presentation.theme.Spacing
 import me.shovon.sms2wallet.presentation.theme.StandardEasing
 
 /**
- * Home tab: today/this-week push counters, pending review count, quick actions,
- * last sync time, token health, and the Wallet API rate-limit budget.
+ * Home tab: today/this-week push counters, pending review count, quick actions, card
+ * fee-waiver progress, last sync time, token health, and the Wallet API rate-limit budget.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +94,8 @@ fun DashboardScreen(
     onOpenActivity: () -> Unit = {},
     onOpenUnmatchedSms: () -> Unit = {},
     onQuickAddInputChange: (String) -> Unit = {},
-    onQuickAddSubmit: () -> Unit = {}
+    onQuickAddSubmit: () -> Unit = {},
+    onManageFeeWaivers: () -> Unit = {}
 ) {
     Sms2WalletScaffold(
         title = "Dashboard"
@@ -167,6 +170,26 @@ fun DashboardScreen(
                             modifier = Modifier.padding(top = Spacing.md)
                         )
                     }
+                }
+
+                item(key = "fee-waivers-header") {
+                    SectionHeader(
+                        title = "Card fee waivers",
+                        supportingText = "Purchases this fee year towards each card's waiver",
+                        modifier = Modifier.padding(top = Spacing.xl),
+                        trailing = if (state.feeWaivers.isEmpty()) {
+                            null
+                        } else {
+                            { TextButton(onClick = onManageFeeWaivers) { Text("Manage") } }
+                        }
+                    )
+                }
+
+                item(key = "fee-waivers") {
+                    FeeWaiverCard(
+                        feeWaivers = state.feeWaivers,
+                        onManage = onManageFeeWaivers
+                    )
                 }
 
                 // Quick Tools Grid (3-column dedicated cards)
@@ -637,6 +660,105 @@ private fun QuickToolCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * Fee-waiver progress for every tracked card. With nothing tracked it explains the feature and
+ * offers the way in, since a blank section on the home screen would explain nothing.
+ */
+@Composable
+private fun FeeWaiverCard(
+    feeWaivers: List<FeeWaiverProgressUiState>,
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GroupedContainer(modifier = modifier) {
+        if (feeWaivers.isEmpty()) {
+            Column(
+                modifier = Modifier.padding(Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                Text(
+                    text = "No cards tracked",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Some cards waive their annual fee after a set number of purchases. " +
+                        "Track one to see how many you have left.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FilledTonalButton(
+                    onClick = onManage,
+                    modifier = Modifier.padding(top = Spacing.sm)
+                ) {
+                    Icon(
+                        imageVector = SolarIcons.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.sm)
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text("Track a card")
+                }
+            }
+        } else {
+            feeWaivers.forEachIndexed { index, progress ->
+                FeeWaiverRow(progress = progress)
+                if (index < feeWaivers.lastIndex) SectionDivider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeeWaiverRow(progress: FeeWaiverProgressUiState) {
+    val accent = if (progress.isMet) Sms2WalletTheme.extendedColors.income else MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${progress.cardLabel}: ${progress.count} of ${progress.target} " +
+                    "purchases. ${progress.statusLabel}"
+            }
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = progress.cardLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${progress.count} / ${progress.target}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (progress.isMet) accent else MaterialTheme.colorScheme.onSurface
+            )
+        }
+        LinearProgressIndicator(
+            progress = { progress.fraction },
+            color = accent,
+            trackColor = accent.copy(alpha = 0.2f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm)
+                .height(PROGRESS_HEIGHT),
+            strokeCap = StrokeCap.Round
+        )
+        Text(
+            text = progress.statusLabel,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.xs)
+        )
     }
 }
 

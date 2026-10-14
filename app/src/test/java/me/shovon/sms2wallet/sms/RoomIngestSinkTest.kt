@@ -439,6 +439,23 @@ private class FakeTransactionDao : TransactionDao {
             .distinct()
     )
 
+    override fun observeCardTransactionCount(
+        bankName: String,
+        accountLast4: String,
+        types: List<String>,
+        fromMillis: Long,
+        toMillis: Long,
+        dismissed: PushState
+    ): Flow<Int> = flowOf(
+        rows.values.count {
+            it.bankName == bankName &&
+                it.accountLast4.orEmpty() == accountLast4 &&
+                it.type in types &&
+                it.timestamp in fromMillis..toMillis &&
+                !(it.pushState == dismissed.name && it.suspectedDuplicateOfId != null)
+        }
+    )
+
     override fun observePendingCount(queued: PushState, sending: PushState): Flow<Int> =
         flowOf(rows.values.count { it.pushState == queued.name || it.pushState == sending.name })
 

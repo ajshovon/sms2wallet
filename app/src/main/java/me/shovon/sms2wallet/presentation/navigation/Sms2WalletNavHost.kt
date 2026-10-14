@@ -90,13 +90,15 @@ import me.shovon.sms2wallet.presentation.screens.playground.ParserPlaygroundScre
 import me.shovon.sms2wallet.presentation.screens.review.ReviewQueueContent
 import me.shovon.sms2wallet.presentation.screens.review.ReviewQueueViewModel
 import me.shovon.sms2wallet.presentation.screens.review.TransactionDetailScreen
+import me.shovon.sms2wallet.presentation.screens.settings.FeeWaiverSettingsScreen
+import me.shovon.sms2wallet.presentation.screens.settings.FeeWaiverSettingsViewModel
 import me.shovon.sms2wallet.presentation.screens.settings.SettingsContent
 import me.shovon.sms2wallet.presentation.screens.settings.SettingsViewModel
 
 /**
  * App root: a bottom-navigation [Scaffold] hosting the four top-level tabs, plus a [NavHost]
  * for detail routes pushed on top of them (transaction detail, add-cash-expense, parser
- * playground, unmatched SMS).
+ * playground, unmatched SMS, card fee waivers).
  */
 @Composable
 fun Sms2WalletRootScreen(
@@ -161,6 +163,7 @@ fun Sms2WalletRootScreen(
                         onOpenActivity = { navigateToTab(Sms2WalletDestination.Activity.route) },
                         onOpenUnmatchedSms = { navController.navigate(Sms2WalletDestination.UnmatchedSms.route) },
                         onQuickAddInputChange = viewModel::onQuickAddInputChange,
+                        onManageFeeWaivers = { navController.navigate(Sms2WalletDestination.FeeWaivers.route) },
                         onQuickAddSubmit = {
                             viewModel.submitQuickAdd { prefill ->
                                 navController.navigate(
@@ -210,6 +213,7 @@ fun Sms2WalletRootScreen(
                     SettingsContent(
                         state = state,
                         onOpenParserPlayground = { navController.navigate(Sms2WalletDestination.ParserPlayground.createRoute()) },
+                        onOpenFeeWaivers = { navController.navigate(Sms2WalletDestination.FeeWaivers.route) },
                         onTokenChange = viewModel::onTokenChange,
                         onToggleTokenVisibility = viewModel::onToggleTokenVisibility,
                         onTestConnection = viewModel::testConnection,
@@ -246,6 +250,16 @@ fun Sms2WalletRootScreen(
                         onRetry = viewModel::retry
                     )
                 }
+            }
+            composable(Sms2WalletDestination.FeeWaivers.route) {
+                val viewModel: FeeWaiverSettingsViewModel = hiltViewModel()
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                FeeWaiverSettingsScreen(
+                    state = state,
+                    onBack = { navController.popBackStack() },
+                    onSave = viewModel::save,
+                    onRemove = viewModel::remove
+                )
             }
             composable(Sms2WalletDestination.UnmatchedSms.route) {
                 val viewModel: UnmatchedSmsViewModel = hiltViewModel()

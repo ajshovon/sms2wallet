@@ -21,7 +21,21 @@ object SampleData {
         pendingReviewCount = 3,
         lastSyncLabel = "2 minutes ago",
         tokenHealth = TokenHealth.VALID,
-        rateLimit = RateLimitUiState(used = 42, limit = 300, windowLabel = "this hour")
+        rateLimit = RateLimitUiState(used = 42, limit = 300, windowLabel = "this hour"),
+        feeWaivers = listOf(
+            FeeWaiverProgressUiState(
+                cardLabel = "City Bank •••• 4412",
+                count = 14,
+                target = 24,
+                statusLabel = "10 more by 14 Mar 2027 · 151 days left"
+            ),
+            FeeWaiverProgressUiState(
+                cardLabel = "EBL •••• 0917",
+                count = 24,
+                target = 24,
+                statusLabel = "Target reached · resets 1 Jan 2027"
+            )
+        )
     )
 
     val reviewQueue = ReviewQueueUiState(

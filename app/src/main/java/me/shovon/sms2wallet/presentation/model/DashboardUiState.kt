@@ -12,9 +12,27 @@ data class DashboardUiState(
     val tokenHealth: TokenHealth = TokenHealth.UNKNOWN,
     val rateLimit: RateLimitUiState = RateLimitUiState(),
     val quickAdd: QuickAddUiState = QuickAddUiState(),
+    val feeWaivers: List<FeeWaiverProgressUiState> = emptyList(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
 )
+
+/**
+ * One tracked card on the dashboard: purchases so far this fee year against the number its
+ * issuer needs to waive the annual fee.
+ */
+data class FeeWaiverProgressUiState(
+    val cardLabel: String,
+    val count: Int,
+    val target: Int,
+    /** "10 more by 14 Mar 2027 · 151 days left", or "Target reached · resets 15 Mar 2027". */
+    val statusLabel: String,
+) {
+    val isMet: Boolean get() = count >= target
+
+    val fraction: Float
+        get() = if (target <= 0) 1f else (count.toFloat() / target.toFloat()).coerceIn(0f, 1f)
+}
 
 /**
  * The "type it" box at the top of the dashboard.

@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import me.shovon.sms2wallet.data.local.dao.TransactionDao
 import me.shovon.sms2wallet.data.local.dao.TransactionSource
@@ -69,6 +70,12 @@ class TransactionRepository @Inject constructor(
 
     /** Distinct (bank, last-4) sources seen so far, for the Settings account-mapping list. */
     fun observeDistinctSources(): Flow<List<TransactionSource>> = transactionDao.observeDistinctSources()
+
+    /** Sources that are a real card or account, i.e. everything except hand-typed entries. */
+    fun observeCardSources(): Flow<List<TransactionSource>> =
+        transactionDao.observeDistinctSources().map { sources ->
+            sources.filterNot { it.bankName == MANUAL_SOURCE_NAME }
+        }
 
     suspend fun findById(id: Long): TransactionEntity? = transactionDao.findById(id)
 

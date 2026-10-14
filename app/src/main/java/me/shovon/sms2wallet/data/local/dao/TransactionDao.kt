@@ -312,6 +312,33 @@ interface TransactionDao {
     @Query("SELECT DISTINCT bank_name, account_last4 FROM transactions ORDER BY bank_name ASC")
     fun observeDistinctSources(): Flow<List<TransactionSource>>
 
+    /**
+     * How many [types] transactions one card made within [fromMillis]..[toMillis], for
+     * fee-waiver tracking.
+     *
+     * Dismissed rows still count - the bank counted the swipe whether or not it went to Wallet -
+     * except those flagged as a suspected duplicate, which are a second SMS about a payment
+     * already counted. A null and an empty last-4 are the same card, as in account mapping.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM transactions
+        WHERE bank_name = :bankName
+          AND IFNULL(account_last4, '') = :accountLast4
+          AND type IN (:types)
+          AND timestamp BETWEEN :fromMillis AND :toMillis
+          AND NOT (push_state = :dismissed AND suspected_duplicate_of_id IS NOT NULL)
+        """
+    )
+    fun observeCardTransactionCount(
+        bankName: String,
+        accountLast4: String,
+        types: List<String>,
+        fromMillis: Long,
+        toMillis: Long,
+        dismissed: PushState = PushState.DISMISSED
+    ): Flow<Int>
+
     /** Count of transactions still waiting to be sent (queued or currently in flight), for the dashboard. */
     @Query("SELECT COUNT(*) FROM transactions WHERE push_state IN (:queued, :sending)")
     fun observePendingCount(

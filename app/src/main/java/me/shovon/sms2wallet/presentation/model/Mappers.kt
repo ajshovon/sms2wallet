@@ -1,10 +1,16 @@
 package me.shovon.sms2wallet.presentation.model
 
 import java.math.BigDecimal
+import java.time.MonthDay
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 import me.shovon.bdparser.TransactionType
 import me.shovon.sms2wallet.data.local.dao.PushLogWithTransaction
 import me.shovon.sms2wallet.data.local.entity.TransactionEntity
 import me.shovon.sms2wallet.data.local.entity.UnmatchedSmsEntity
+import me.shovon.sms2wallet.domain.model.FeeWaiverProgress
+import me.shovon.sms2wallet.domain.model.FeeWaiverTracker
 import me.shovon.sms2wallet.domain.model.PushState
 import me.shovon.sms2wallet.presentation.util.TimeFormatter
 
@@ -152,3 +158,46 @@ fun displayBankName(bank: String): String = when {
         bank.equals("Mutual Trust Bank Ltd", ignoreCase = true) -> "MTB"
     else -> bank
 }
+
+/** Labels a card exactly as Settings → Account mapping does, so the two screens agree. */
+fun cardLabel(bankName: String, accountLast4: String?): String {
+    val displayBank = displayBankName(bankName)
+    return if (accountLast4.isNullOrBlank()) displayBank else "$displayBank •••• $accountLast4"
+}
+
+/** The `"bank|last4"` key used for a card in UI callbacks, matching account mapping's. */
+fun cardSourceId(bankName: String, accountLast4: String?): String = "$bankName|${accountLast4.orEmpty()}"
+
+private val fullDate: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+private val dayAndMonth: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+
+/**
+ * One dashboard row for a tracked card. The status line answers the question the user actually
+ * has - "how many more, and by when?" - rather than restating the count.
+ */
+fun FeeWaiverProgress.toUiState(): FeeWaiverProgressUiState {
+    val remaining = (tracker.target - count).coerceAtLeast(0)
+    val status = if (remaining == 0) {
+        "Target reached · resets ${period.endInclusive.plusDays(1).format(fullDate)}"
+    } else {
+        // Counting today, so the last day of the fee year reads "1 day left", not "0 days".
+        val daysLeft = ChronoUnit.DAYS.between(asOf, period.endInclusive) + 1
+        "$remaining more by ${period.endInclusive.format(fullDate)} · $daysLeft day${if (daysLeft == 1L) "" else "s"} left"
+    }
+    return FeeWaiverProgressUiState(
+        cardLabel = cardLabel(tracker.bankName, tracker.accountLast4),
+        count = count,
+        target = tracker.target,
+        statusLabel = status,
+    )
+}
+
+/** One row in Settings → Card fee waivers. */
+fun FeeWaiverTracker.toSettingsUiState(): FeeWaiverTrackerUiState = FeeWaiverTrackerUiState(
+    sourceId = cardSourceId(bankName, accountLast4),
+    cardLabel = cardLabel(bankName, accountLast4),
+    target = target,
+    startMonth = startMonth,
+    startDay = startDay,
+    summary = "$target purchases per fee year · starts ${MonthDay.of(startMonth, startDay).format(dayAndMonth)}",
+)

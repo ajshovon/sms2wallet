@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import me.shovon.bdparser.bank.BankParser
 import me.shovon.sms2wallet.domain.model.AccentColor
+import me.shovon.sms2wallet.domain.model.FeeWaiverTracker
 import me.shovon.sms2wallet.domain.model.IntelligenceSettings
 import me.shovon.sms2wallet.domain.model.SenderOverride
 import me.shovon.sms2wallet.domain.model.ThemeMode
@@ -118,6 +119,37 @@ class AppPreferences(
                 .mapNotNull(SenderOverride::decode)
                 .filterNot { SenderOverride.normalise(it.sender) == normalised }
                 .map(SenderOverride::encode)
+                .toSet()
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Card fee-waiver tracking
+    // ------------------------------------------------------------------
+
+    /** Cards the user is tracking towards an annual-fee waiver, one per (bank, last-4). */
+    val feeWaiverTrackers: Flow<List<FeeWaiverTracker>> = safeData.map { prefs ->
+        prefs[FEE_WAIVER_TRACKERS_KEY].orEmpty()
+            .mapNotNull(FeeWaiverTracker::decode)
+            .sortedWith(compareBy({ it.bankName }, { it.accountLast4 }))
+    }
+
+    /** Replaces any existing tracker for the same card, so editing never leaves two behind. */
+    suspend fun saveFeeWaiverTracker(tracker: FeeWaiverTracker) {
+        dataStore.edit { prefs ->
+            val kept = prefs[FEE_WAIVER_TRACKERS_KEY].orEmpty()
+                .mapNotNull(FeeWaiverTracker::decode)
+                .filterNot { it.bankName == tracker.bankName && it.accountLast4 == tracker.accountLast4 }
+            prefs[FEE_WAIVER_TRACKERS_KEY] = (kept + tracker).map(FeeWaiverTracker::encode).toSet()
+        }
+    }
+
+    suspend fun removeFeeWaiverTracker(bankName: String, accountLast4: String) {
+        dataStore.edit { prefs ->
+            prefs[FEE_WAIVER_TRACKERS_KEY] = prefs[FEE_WAIVER_TRACKERS_KEY].orEmpty()
+                .mapNotNull(FeeWaiverTracker::decode)
+                .filterNot { it.bankName == bankName && it.accountLast4 == accountLast4 }
+                .map(FeeWaiverTracker::encode)
                 .toSet()
         }
     }
@@ -269,6 +301,7 @@ class AppPreferences(
         val ENABLED_PARSERS_KEY = stringSetPreferencesKey("enabled_parsers")
         val AUTO_PUSH_PARSERS_KEY = stringSetPreferencesKey("auto_push_parsers")
         val SENDER_OVERRIDES_KEY = stringSetPreferencesKey("sender_overrides")
+        val FEE_WAIVER_TRACKERS_KEY = stringSetPreferencesKey("fee_waiver_trackers")
         val REMINDER_ENABLED_KEY = booleanPreferencesKey("reminder_enabled")
         val REMINDER_TIME_MINUTES_KEY = intPreferencesKey("reminder_time_minutes")
         val REMINDER_SUPPRESS_THRESHOLD_KEY = intPreferencesKey("reminder_suppress_threshold")

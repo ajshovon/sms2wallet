@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.shovon.sms2wallet.data.remote.ApiResult
 import me.shovon.sms2wallet.data.remote.WalletApiClient
+import me.shovon.sms2wallet.data.repository.FeeWaiverRepository
 import me.shovon.sms2wallet.data.repository.IntelligenceRepository
 import me.shovon.sms2wallet.data.repository.IntelligenceResult
 import me.shovon.sms2wallet.data.repository.SettingsRepository
@@ -26,11 +27,12 @@ import me.shovon.sms2wallet.presentation.model.DashboardUiState
 import me.shovon.sms2wallet.presentation.model.QuickAddUiState
 import me.shovon.sms2wallet.presentation.model.RateLimitUiState
 import me.shovon.sms2wallet.presentation.model.TokenHealth
+import me.shovon.sms2wallet.presentation.model.toUiState
 import me.shovon.sms2wallet.presentation.util.TimeFormatter
 
 /**
- * Dashboard state: local counters straight from Room, plus token health and API budget, which
- * can only come from the network.
+ * Dashboard state: local counters straight from Room (including fee-waiver progress per card),
+ * plus token health and API budget, which can only come from the network.
  *
  * The remote half is fetched once per ViewModel (and on explicit [refresh]) rather than being
  * observed, because every check spends from the same 300-requests/hour budget the card is
@@ -43,6 +45,7 @@ class DashboardViewModel @Inject constructor(
     private val walletApiClient: WalletApiClient,
     private val intelligenceRepository: IntelligenceRepository,
     private val walletSyncRepository: WalletSyncRepository,
+    private val feeWaiverRepository: FeeWaiverRepository,
 ) : ViewModel() {
 
     private val remoteState = MutableStateFlow(RemoteState())
@@ -83,8 +86,13 @@ class DashboardViewModel @Inject constructor(
         baseState,
         quickAddState,
         intelligenceRepository.isConfigured,
-    ) { base, quickAdd, isConfigured ->
-        base.copy(quickAdd = quickAdd.copy(isAvailable = isConfigured))
+        feeWaiverRepository.observeProgress(),
+    ) { base, quickAdd, isConfigured, feeWaivers ->
+        base.copy(
+            quickAdd = quickAdd.copy(isAvailable = isConfigured),
+            feeWaivers = feeWaivers.map { it.toUiState() }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.cardLabel }),
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),

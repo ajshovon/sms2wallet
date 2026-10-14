@@ -110,6 +110,14 @@ class FakeTransactionDao(claimed: List<TransactionEntity>) : TransactionDao {
     override fun observePushedCount(dayStartMillis: Long, dayEndMillis: Long, pushed: PushState): Flow<Int> = flowOf(0)
     override fun observePendingCount(queued: PushState, sending: PushState): Flow<Int> = flowOf(0)
     override fun observeDistinctSources(): Flow<List<TransactionSource>> = flowOf(emptyList())
+    override fun observeCardTransactionCount(
+        bankName: String,
+        accountLast4: String,
+        types: List<String>,
+        fromMillis: Long,
+        toMillis: Long,
+        dismissed: PushState
+    ): Flow<Int> = flowOf(0)
     override suspend fun dismissAllReviewable(
         reason: String,
         now: Long,

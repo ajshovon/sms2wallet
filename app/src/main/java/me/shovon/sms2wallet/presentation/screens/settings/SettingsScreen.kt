@@ -82,7 +82,8 @@ import me.shovon.sms2wallet.presentation.theme.StandardEasing
 import me.shovon.sms2wallet.presentation.theme.swatch
 
 /**
- * Settings tab: wallet connection, per-provider parser toggles, account mapping, reminders.
+ * Settings tab: wallet connection, per-provider parser toggles, account mapping, the entry to
+ * card fee-waiver tracking, reminders.
  *
  * Stateless and hoisted - state comes from [me.shovon.sms2wallet.presentation.screens.settings.SettingsViewModel],
  * so toggles persist to DataStore instead of being lost on the next tab switch.
@@ -113,7 +114,8 @@ fun SettingsContent(
     onAccountMappingChange: (String, String) -> Unit,
     onReminderEnabledChange: (Boolean) -> Unit,
     onReminderTimeChange: (Int, Int) -> Unit,
-    onReminderSkipCountChange: (Int) -> Unit
+    onReminderSkipCountChange: (Int) -> Unit,
+    onOpenFeeWaivers: () -> Unit = {}
 ) {
     Sms2WalletScaffold(title = "Settings") { padding ->
         LazyColumn(
@@ -292,6 +294,17 @@ fun SettingsContent(
                     )
                     if (index < state.accountMappings.lastIndex) GroupedRowDivider()
                 }
+            }
+
+            item(key = "fee-waivers-header") {
+                SectionHeader(
+                    title = "Card fee waivers",
+                    supportingText = "Purchases a card needs each year to waive its annual fee.",
+                    modifier = Modifier.padding(top = Spacing.xl)
+                )
+            }
+            item(key = "fee-waivers-entry") {
+                FeeWaiversEntryRow(onClick = onOpenFeeWaivers)
             }
 
             item(key = "reminders-header") {
@@ -665,6 +678,46 @@ private fun WalletCatalogueRow(
                 }
             }
             }
+        }
+    }
+}
+
+/** Opens the dedicated fee-waiver screen, where cards and their targets are set up. */
+@Composable
+private fun FeeWaiversEntryRow(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = groupedSurfaceColor(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { role = Role.Button }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tracked cards",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Choose cards, their purchase target and fee-year start",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xxs)
+                )
+            }
+            Icon(
+                imageVector = SolarIcons.CaretRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(IconSize.md)
+            )
         }
     }
 }
