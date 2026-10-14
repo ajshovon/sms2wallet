@@ -61,7 +61,7 @@ class FeeWaiverRepository @Inject constructor(
         val toMillis = period.endInclusive.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
         return transactionDao.observeCardTransactionCount(
             bankName = tracker.bankName,
-            accountLast4 = tracker.accountLast4,
+            accountLast4s = tracker.allLast4s,
             types = FeeWaiverTracker.COUNTED_TYPES.map { it.name },
             fromMillis = fromMillis,
             toMillis = toMillis,

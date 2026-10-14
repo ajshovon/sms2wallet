@@ -189,15 +189,28 @@ fun FeeWaiverProgress.toUiState(): FeeWaiverProgressUiState {
         count = count,
         target = tracker.target,
         statusLabel = status,
+        // The count already includes these cards; naming them is what makes a total that is
+        // higher than the main card's own SMS explain itself.
+        supplementaryLabel = tracker.supplementaryLast4s.takeIf { it.isNotEmpty() }
+            ?.joinToString(prefix = "Includes supplementary ") { "•••• $it" },
     )
 }
 
-/** One row in Settings → Card fee waivers. */
-fun FeeWaiverTracker.toSettingsUiState(): FeeWaiverTrackerUiState = FeeWaiverTrackerUiState(
+/** One row in Settings → Card fee waivers; the two lists feed its editor. */
+fun FeeWaiverTracker.toSettingsUiState(
+    supplementaryOptions: List<SupplementaryCardUiState> = emptyList(),
+    trackedSeparatelyLabels: List<String> = emptyList(),
+): FeeWaiverTrackerUiState = FeeWaiverTrackerUiState(
     sourceId = cardSourceId(bankName, accountLast4),
     cardLabel = cardLabel(bankName, accountLast4),
     target = target,
     startMonth = startMonth,
     startDay = startDay,
-    summary = "$target purchases per fee year · starts ${MonthDay.of(startMonth, startDay).format(dayAndMonth)}",
+    summary = buildString {
+        append("$target purchases per fee year · starts ${MonthDay.of(startMonth, startDay).format(dayAndMonth)}")
+        if (supplementaryLast4s.isNotEmpty()) append(" · +${supplementaryLast4s.size} supplementary")
+    },
+    supplementaryLast4s = supplementaryLast4s,
+    supplementaryOptions = supplementaryOptions,
+    trackedSeparatelyLabels = trackedSeparatelyLabels,
 )

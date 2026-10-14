@@ -11,6 +11,10 @@ import me.shovon.bdparser.TransactionType
  *
  * The year renews by itself on [startMonth]/[startDay] - usually the card's anniversary - so the
  * user sets it up once rather than re-entering dates every year.
+ *
+ * A supplementary card is a second card on the same account: its SMS carry its own last 4
+ * digits, but the bank counts its purchases towards the main card's waiver. Those cards are
+ * listed in [supplementaryLast4s] and counted as part of this one rather than tracked alone.
  */
 data class FeeWaiverTracker(
     /** [me.shovon.bdparser.bank.BankParser.getBankName] of the card's issuer. */
@@ -20,7 +24,12 @@ data class FeeWaiverTracker(
     val target: Int,
     val startMonth: Int,
     val startDay: Int,
+    /** Last 4 digits of supplementary cards from the same bank, whose purchases count here too. */
+    val supplementaryLast4s: List<String> = emptyList(),
 ) {
+    /** Every card whose purchases count towards this waiver: the main card first. */
+    val allLast4s: List<String> get() = listOf(accountLast4) + supplementaryLast4s
+
     /**
      * The fee year [today] falls in, both ends inclusive.
      *
@@ -53,23 +62,37 @@ data class FeeWaiverTracker(
         }
 
         private const val SEPARATOR = '|'
-        private const val FIELD_COUNT = 5
+        private const val LIST_SEPARATOR = ','
+        private const val BASE_FIELD_COUNT = 5
 
-        /** Serialised for DataStore as `bank|last4|target|month|day`. */
+        /**
+         * Serialised for DataStore as `bank|last4|target|month|day`, plus `|sup1,sup2` when the
+         * card has supplementary cards.
+         *
+         * The sixth field is left off entirely when there are none, so a tracker without
+         * supplementaries reads the same as one written by 0.9.0 - which also means 0.9.0 can
+         * still read it after a downgrade.
+         */
         fun encode(tracker: FeeWaiverTracker): String = with(tracker) {
-            listOf(bankName, accountLast4, target, startMonth, startDay).joinToString(SEPARATOR.toString())
+            val fields = listOf(bankName, accountLast4, target, startMonth, startDay) +
+                listOfNotNull(supplementaryLast4s.takeIf { it.isNotEmpty() }?.joinToString(LIST_SEPARATOR.toString()))
+            fields.joinToString(SEPARATOR.toString())
         }
 
         /** Null for anything malformed, so one bad entry cannot take the whole list down. */
         fun decode(value: String): FeeWaiverTracker? {
             val parts = value.split(SEPARATOR)
-            if (parts.size != FIELD_COUNT || parts[0].isBlank()) return null
+            if (parts.size !in BASE_FIELD_COUNT..BASE_FIELD_COUNT + 1 || parts[0].isBlank()) return null
             val target = parts[2].toIntOrNull()?.takeIf { it in 1..MAX_TARGET } ?: return null
             val month = parts[3].toIntOrNull() ?: return null
             val day = parts[4].toIntOrNull() ?: return null
             // MonthDay accepts 29 February and rejects 31 April, which is exactly the rule here.
             runCatching { MonthDay.of(month, day) }.getOrNull() ?: return null
-            return FeeWaiverTracker(parts[0], parts[1], target, month, day)
+            val supplementary = parts.getOrNull(BASE_FIELD_COUNT).orEmpty()
+                .split(LIST_SEPARATOR)
+                .filter { it.isNotBlank() && it != parts[1] }
+                .distinct()
+            return FeeWaiverTracker(parts[0], parts[1], target, month, day, supplementary)
         }
     }
 }

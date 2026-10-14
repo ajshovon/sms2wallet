@@ -313,8 +313,9 @@ interface TransactionDao {
     fun observeDistinctSources(): Flow<List<TransactionSource>>
 
     /**
-     * How many [types] transactions one card made within [fromMillis]..[toMillis], for
-     * fee-waiver tracking.
+     * How many [types] transactions the cards in [accountLast4s] made within
+     * [fromMillis]..[toMillis], for fee-waiver tracking. Several last-4s are one waiver when a
+     * supplementary card's purchases count towards the main card's.
      *
      * Dismissed rows still count - the bank counted the swipe whether or not it went to Wallet -
      * except those flagged as a suspected duplicate, which are a second SMS about a payment
@@ -324,7 +325,7 @@ interface TransactionDao {
         """
         SELECT COUNT(*) FROM transactions
         WHERE bank_name = :bankName
-          AND IFNULL(account_last4, '') = :accountLast4
+          AND IFNULL(account_last4, '') IN (:accountLast4s)
           AND type IN (:types)
           AND timestamp BETWEEN :fromMillis AND :toMillis
           AND NOT (push_state = :dismissed AND suspected_duplicate_of_id IS NOT NULL)
@@ -332,7 +333,7 @@ interface TransactionDao {
     )
     fun observeCardTransactionCount(
         bankName: String,
-        accountLast4: String,
+        accountLast4s: List<String>,
         types: List<String>,
         fromMillis: Long,
         toMillis: Long,

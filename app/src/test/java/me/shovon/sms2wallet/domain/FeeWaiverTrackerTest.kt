@@ -67,11 +67,41 @@ class FeeWaiverTrackerTest {
     }
 
     @Test
+    fun `supplementary cards round trip`() {
+        val tracker = FeeWaiverTracker("EBL", "1234", 24, 1, 1, supplementaryLast4s = listOf("5678", "9012"))
+
+        assertEquals(tracker, FeeWaiverTracker.decode(FeeWaiverTracker.encode(tracker)))
+        assertEquals(listOf("1234", "5678", "9012"), tracker.allLast4s)
+    }
+
+    @Test
+    fun `a tracker without supplementary cards encodes as 0_9_0 did`() {
+        // 0.9.0 rejects anything but five fields, so this is what keeps a downgrade readable.
+        assertEquals("EBL|1234|24|1|1", FeeWaiverTracker.encode(FeeWaiverTracker("EBL", "1234", 24, 1, 1)))
+    }
+
+    @Test
+    fun `an entry written by 0_9_0 decodes with no supplementary cards`() {
+        val tracker = FeeWaiverTracker.decode("EBL|1234|24|1|15")
+
+        assertEquals(FeeWaiverTracker("EBL", "1234", 24, 1, 15), tracker)
+        assertEquals(emptyList<String>(), tracker?.supplementaryLast4s)
+    }
+
+    @Test
+    fun `decode drops blank, repeated and self-referencing supplementary entries`() {
+        val tracker = FeeWaiverTracker.decode("EBL|1234|24|1|1|5678,,1234,5678")
+
+        assertEquals(listOf("5678"), tracker?.supplementaryLast4s)
+    }
+
+    @Test
     fun `decode rejects malformed entries`() {
         assertNull(FeeWaiverTracker.decode("City Bank|4412|24|3"))
         assertNull(FeeWaiverTracker.decode("|4412|24|3|15"))
         assertNull(FeeWaiverTracker.decode("City Bank|4412|0|3|15"))
         assertNull(FeeWaiverTracker.decode("City Bank|4412|24|4|31"))
         assertNull(FeeWaiverTracker.decode("City Bank|4412|many|3|15"))
+        assertNull(FeeWaiverTracker.decode("City Bank|4412|24|3|15|5678|extra"))
     }
 }

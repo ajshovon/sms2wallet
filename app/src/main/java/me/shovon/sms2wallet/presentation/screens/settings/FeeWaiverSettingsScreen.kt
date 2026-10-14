@@ -15,11 +15,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -39,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,19 +58,22 @@ import me.shovon.sms2wallet.presentation.components.SelectionSheet
 import me.shovon.sms2wallet.presentation.components.Sms2WalletScaffold
 import me.shovon.sms2wallet.presentation.model.FeeWaiverSettingsUiState
 import me.shovon.sms2wallet.presentation.model.FeeWaiverTrackerUiState
+import me.shovon.sms2wallet.presentation.model.SupplementaryCardUiState
 import me.shovon.sms2wallet.presentation.theme.IconSize
+import me.shovon.sms2wallet.presentation.theme.MinTouchTarget
 import me.shovon.sms2wallet.presentation.theme.SolarIcons
 import me.shovon.sms2wallet.presentation.theme.Spacing
 
 /**
  * Settings → Card fee waivers: pick the cards whose annual fee is waived after enough purchases,
- * and say how many and from what date. The dashboard then shows each card's progress.
+ * and say how many and from what date. A supplementary card is linked to its main card here
+ * rather than tracked alone. The dashboard then shows each card's progress.
  */
 @Composable
 fun FeeWaiverSettingsScreen(
     state: FeeWaiverSettingsUiState,
     onBack: () -> Unit,
-    onSave: (sourceId: String, target: Int, startMonth: Int, startDay: Int) -> Unit,
+    onSave: (sourceId: String, target: Int, startMonth: Int, startDay: Int, supplementaryLast4s: List<String>) -> Unit,
     onRemove: (sourceId: String) -> Unit
 ) {
     var addSheetOpen by remember { mutableStateOf(false) }
@@ -203,7 +212,10 @@ fun FeeWaiverSettingsScreen(
                         // The calendar year is the most common fee year, and the editor puts the
                         // date right in front of the user to change.
                         startMonth = 1,
-                        startDay = 1
+                        startDay = 1,
+                        supplementaryLast4s = emptyList(),
+                        supplementaryOptions = card.supplementaryOptions,
+                        trackedSeparatelyLabels = card.trackedSeparatelyLabels
                     )
                 }
             },
@@ -215,8 +227,8 @@ fun FeeWaiverSettingsScreen(
         TrackerEditorDialog(
             initial = target,
             onDismiss = { editing = null },
-            onSave = { count, month, day ->
-                onSave(target.sourceId, count, month, day)
+            onSave = { count, month, day, supplementary ->
+                onSave(target.sourceId, count, month, day, supplementary)
                 editing = null
             }
         )
@@ -266,7 +278,7 @@ private fun TrackerRow(
 }
 
 /**
- * Target and fee-year start for one card.
+ * Target, fee-year start and supplementary cards for one card.
  *
  * The date picker offers a full date because that is how a card anniversary is remembered, but
  * only the day and month are kept: the year renews by itself.
@@ -276,9 +288,10 @@ private fun TrackerRow(
 private fun TrackerEditorDialog(
     initial: EditorTarget,
     onDismiss: () -> Unit,
-    onSave: (target: Int, startMonth: Int, startDay: Int) -> Unit
+    onSave: (target: Int, startMonth: Int, startDay: Int, supplementaryLast4s: List<String>) -> Unit
 ) {
     var targetText by remember(initial) { mutableStateOf(initial.target.toString()) }
+    var supplementary by remember(initial) { mutableStateOf(initial.supplementaryLast4s.toSet()) }
     var startMonth by remember(initial) { mutableIntStateOf(initial.startMonth) }
     var startDay by remember(initial) { mutableIntStateOf(initial.startDay) }
     var pickingDate by remember { mutableStateOf(false) }
@@ -289,7 +302,11 @@ private fun TrackerEditorDialog(
         onDismissRequest = onDismiss,
         title = { Text(initial.cardLabel) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            // Scrolls so a bank with several cards cannot push Save off a small screen.
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
                 AppTextField(
                     label = "Purchases needed",
                     value = targetText,
@@ -319,11 +336,20 @@ private fun TrackerEditorDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                SupplementaryCardsSection(
+                    options = initial.supplementaryOptions,
+                    trackedSeparately = initial.trackedSeparatelyLabels,
+                    selected = supplementary,
+                    onToggle = { last4, linked ->
+                        supplementary = if (linked) supplementary + last4 else supplementary - last4
+                    },
+                    showEmptyHint = initial.hasCardNumber
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { target?.let { onSave(it, startMonth, startDay) } },
+                onClick = { target?.let { onSave(it, startMonth, startDay, supplementary.sorted()) } },
                 enabled = target != null
             ) { Text("Save") }
         },
@@ -361,21 +387,110 @@ private fun TrackerEditorDialog(
     }
 }
 
+/**
+ * Other cards from the same bank, ticked when they are supplementary cards of this one.
+ *
+ * Shown only when there is something to link. Otherwise it says why nothing is offered: either
+ * the other card is [trackedSeparately] and has to be untracked first, or no SMS from a second
+ * card has arrived yet - so the user knows what to do rather than assume the feature is missing.
+ */
+@Composable
+private fun SupplementaryCardsSection(
+    options: List<SupplementaryCardUiState>,
+    trackedSeparately: List<String>,
+    selected: Set<String>,
+    onToggle: (last4: String, linked: Boolean) -> Unit,
+    showEmptyHint: Boolean
+) {
+    val trackedSeparatelyNote = trackedSeparately.takeIf { it.isNotEmpty() }?.let { labels ->
+        val subject = labels.joinToString(" and ")
+        if (labels.size == 1) {
+            "$subject is tracked on its own. Stop tracking it to link it here as a supplementary card."
+        } else {
+            "$subject are tracked on their own. Stop tracking one to link it here as a supplementary card."
+        }
+    }
+
+    if (options.isEmpty()) {
+        if (trackedSeparatelyNote != null) {
+            Text(
+                text = trackedSeparatelyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.sm)
+            )
+        } else if (showEmptyHint) {
+            Text(
+                text = "A supplementary card can be linked here once an SMS from it arrives.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.sm)
+            )
+        }
+        return
+    }
+
+    Text(
+        text = "Supplementary cards",
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.padding(top = Spacing.sm)
+    )
+    Text(
+        text = "Purchases on a ticked card count towards this card's target.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    options.forEach { option ->
+        val isLinked = option.last4 in selected
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = MinTouchTarget)
+                .toggleable(
+                    value = isLinked,
+                    role = Role.Checkbox,
+                    onValueChange = { onToggle(option.last4, it) }
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            Checkbox(checked = isLinked, onCheckedChange = null)
+            Text(text = option.label, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    trackedSeparatelyNote?.let { note ->
+        Text(
+            text = note,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 /** What the editor opens with: an existing tracker's values, or defaults for a new card. */
 private data class EditorTarget(
     val sourceId: String,
     val cardLabel: String,
     val target: Int,
     val startMonth: Int,
-    val startDay: Int
+    val startDay: Int,
+    val supplementaryLast4s: List<String>,
+    val supplementaryOptions: List<SupplementaryCardUiState>,
+    val trackedSeparatelyLabels: List<String>
 ) {
+    /** A source with no last 4 (most mobile wallets) has no supplementary cards to link. */
+    val hasCardNumber: Boolean get() = sourceId.substringAfter('|', "").isNotBlank()
+
     companion object {
         fun from(tracker: FeeWaiverTrackerUiState) = EditorTarget(
             sourceId = tracker.sourceId,
             cardLabel = tracker.cardLabel,
             target = tracker.target,
             startMonth = tracker.startMonth,
-            startDay = tracker.startDay
+            startDay = tracker.startDay,
+            supplementaryLast4s = tracker.supplementaryLast4s,
+            supplementaryOptions = tracker.supplementaryOptions,
+            trackedSeparatelyLabels = tracker.trackedSeparatelyLabels
         )
     }
 }

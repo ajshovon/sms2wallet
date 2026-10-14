@@ -112,7 +112,7 @@ class FakeTransactionDao(claimed: List<TransactionEntity>) : TransactionDao {
     override fun observeDistinctSources(): Flow<List<TransactionSource>> = flowOf(emptyList())
     override fun observeCardTransactionCount(
         bankName: String,
-        accountLast4: String,
+        accountLast4s: List<String>,
         types: List<String>,
         fromMillis: Long,
         toMillis: Long,

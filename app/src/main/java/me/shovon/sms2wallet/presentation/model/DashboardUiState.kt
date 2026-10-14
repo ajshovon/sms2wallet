@@ -27,6 +27,8 @@ data class FeeWaiverProgressUiState(
     val target: Int,
     /** "10 more by 14 Mar 2027 · 151 days left", or "Target reached · resets 15 Mar 2027". */
     val statusLabel: String,
+    /** "Includes supplementary •••• 5678" when other cards count towards this one; else null. */
+    val supplementaryLabel: String? = null,
 ) {
     val isMet: Boolean get() = count >= target
 

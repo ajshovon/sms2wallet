@@ -441,7 +441,7 @@ private class FakeTransactionDao : TransactionDao {
 
     override fun observeCardTransactionCount(
         bankName: String,
-        accountLast4: String,
+        accountLast4s: List<String>,
         types: List<String>,
         fromMillis: Long,
         toMillis: Long,
@@ -449,7 +449,7 @@ private class FakeTransactionDao : TransactionDao {
     ): Flow<Int> = flowOf(
         rows.values.count {
             it.bankName == bankName &&
-                it.accountLast4.orEmpty() == accountLast4 &&
+                it.accountLast4.orEmpty() in accountLast4s &&
                 it.type in types &&
                 it.timestamp in fromMillis..toMillis &&
                 !(it.pushState == dismissed.name && it.suspectedDuplicateOfId != null)

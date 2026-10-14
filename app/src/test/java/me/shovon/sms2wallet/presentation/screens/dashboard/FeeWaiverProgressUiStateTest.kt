@@ -56,6 +56,16 @@ class FeeWaiverProgressUiStateTest {
     }
 
     @Test
+    fun `supplementary cards are named on the row`() {
+        val withSupplementary = FeeWaiverProgress(
+            tracker.copy(supplementaryLast4s = listOf("5678")), period, 40, LocalDate.of(2026, 10, 14)
+        ).toUiState()
+
+        assertEquals("Includes supplementary •••• 5678", withSupplementary.supplementaryLabel)
+        assertEquals(null, progress(count = 14, asOf = LocalDate.of(2026, 10, 14)).supplementaryLabel)
+    }
+
+    @Test
     fun `fraction is the share of the target reached`() {
         val state = progress(count = 6, asOf = LocalDate.of(2026, 10, 14))
 

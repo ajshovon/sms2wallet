@@ -33,7 +33,8 @@ object SampleData {
                 cardLabel = "EBL •••• 0917",
                 count = 24,
                 target = 24,
-                statusLabel = "Target reached · resets 1 Jan 2027"
+                statusLabel = "Target reached · resets 1 Jan 2027",
+                supplementaryLabel = "Includes supplementary •••• 5520"
             )
         )
     )

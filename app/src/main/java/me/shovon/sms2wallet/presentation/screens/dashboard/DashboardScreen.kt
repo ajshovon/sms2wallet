@@ -719,7 +719,7 @@ private fun FeeWaiverRow(progress: FeeWaiverProgressUiState) {
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = "${progress.cardLabel}: ${progress.count} of ${progress.target} " +
-                    "purchases. ${progress.statusLabel}"
+                    "purchases. ${progress.supplementaryLabel?.let { "$it. " }.orEmpty()}${progress.statusLabel}"
             }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md)
     ) {
@@ -741,6 +741,15 @@ private fun FeeWaiverRow(progress: FeeWaiverProgressUiState) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (progress.isMet) accent else MaterialTheme.colorScheme.onSurface
+            )
+        }
+        progress.supplementaryLabel?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
         LinearProgressIndicator(

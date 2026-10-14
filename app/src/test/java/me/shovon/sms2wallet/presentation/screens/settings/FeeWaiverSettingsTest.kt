@@ -5,6 +5,7 @@ import me.shovon.sms2wallet.domain.model.FeeWaiverTracker
 import me.shovon.sms2wallet.presentation.screens.settings.FeeWaiverSettingsViewModel.Companion.buildFeeWaiverSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FeeWaiverSettingsTest {
@@ -64,6 +65,76 @@ class FeeWaiverSettingsTest {
         )
 
         assertEquals(listOf("bKash", "MTB •••• 0000"), state.untrackedCards.map { it.label })
+    }
+
+    @Test
+    fun `a new card is offered the other cards from its bank as supplementary`() {
+        val state = buildFeeWaiverSettings(
+            trackers = emptyList(),
+            sources = listOf(
+                TransactionSource("EBL", "1234"),
+                TransactionSource("EBL", "5678"),
+                TransactionSource("EBL", null),
+                TransactionSource("City Bank", "4412"),
+            ),
+        )
+
+        val ebl1234 = state.untrackedCards.single { it.sourceId == "EBL|1234" }
+        // Not itself, not another bank, and not a source with no card number.
+        assertEquals(listOf("5678"), ebl1234.supplementaryOptions.map { it.last4 })
+        assertEquals("EBL •••• 5678", ebl1234.supplementaryOptions.single().label)
+    }
+
+    @Test
+    fun `a linked supplementary card is neither offered for tracking nor offered again`() {
+        val state = buildFeeWaiverSettings(
+            trackers = listOf(
+                FeeWaiverTracker("EBL", "1234", 24, 1, 1, supplementaryLast4s = listOf("5678")),
+                FeeWaiverTracker("EBL", "9999", 12, 1, 1),
+            ),
+            sources = listOf(
+                TransactionSource("EBL", "1234"),
+                TransactionSource("EBL", "5678"),
+                TransactionSource("EBL", "9999"),
+                TransactionSource("EBL", "3333"),
+            ),
+        )
+
+        assertEquals(listOf("EBL •••• 3333"), state.untrackedCards.map { it.label })
+        val main = state.trackers.single { it.sourceId == "EBL|1234" }
+        // Its own link stays editable; 9999 is tracked on its own, so linking it would double count.
+        assertEquals(listOf("3333", "5678"), main.supplementaryOptions.map { it.last4 })
+        val other = state.trackers.single { it.sourceId == "EBL|9999" }
+        assertEquals(listOf("3333"), other.supplementaryOptions.map { it.last4 })
+    }
+
+    @Test
+    fun `a same-bank card tracked on its own is named, not offered`() {
+        val state = buildFeeWaiverSettings(
+            trackers = listOf(
+                FeeWaiverTracker("EBL", "1234", 24, 1, 1),
+                FeeWaiverTracker("EBL", "5678", 24, 1, 1),
+                FeeWaiverTracker("City Bank", "4412", 24, 1, 1),
+            ),
+            sources = listOf(TransactionSource("EBL", "1234"), TransactionSource("EBL", "5678")),
+        )
+
+        val main = state.trackers.single { it.sourceId == "EBL|1234" }
+        assertEquals(emptyList<String>(), main.supplementaryOptions.map { it.last4 })
+        // Only the same bank, and never the card itself.
+        assertEquals(listOf("EBL •••• 5678"), main.trackedSeparatelyLabels)
+    }
+
+    @Test
+    fun `a linked card stays unlinkable after its SMS are gone`() {
+        val row = buildFeeWaiverSettings(
+            trackers = listOf(FeeWaiverTracker("EBL", "1234", 24, 1, 1, supplementaryLast4s = listOf("5678"))),
+            sources = listOf(TransactionSource("EBL", "1234")),
+        ).trackers.single()
+
+        assertEquals(listOf("5678"), row.supplementaryLast4s)
+        assertEquals(listOf("5678"), row.supplementaryOptions.map { it.last4 })
+        assertTrue(row.summary.endsWith(" · +1 supplementary"))
     }
 
     @Test
