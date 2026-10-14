@@ -144,3 +144,11 @@ fun TransactionEntity.toDetailUiState(
     isSuspectedDuplicate = suspectedDuplicateOfId != null,
     needsVerification = pushState == PushState.NEEDS_VERIFY.name,
 )
+
+/** Shortens a bank name the way every source label shows it; only MTB's is long enough to need it. */
+fun displayBankName(bank: String): String = when {
+    bank.equals("Mutual Trust Bank", ignoreCase = true) ||
+        bank.equals("Mutual Trust Bank Limited", ignoreCase = true) ||
+        bank.equals("Mutual Trust Bank Ltd", ignoreCase = true) -> "MTB"
+    else -> bank
+}

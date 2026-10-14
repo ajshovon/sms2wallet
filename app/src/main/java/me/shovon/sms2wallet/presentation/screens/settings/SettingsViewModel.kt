@@ -38,6 +38,7 @@ import me.shovon.sms2wallet.presentation.model.ReminderSettingsUiState
 import me.shovon.sms2wallet.presentation.model.SettingsUiState
 import me.shovon.sms2wallet.presentation.model.WalletCatalogueUiState
 import me.shovon.sms2wallet.presentation.model.WalletConnectionUiState
+import me.shovon.sms2wallet.presentation.model.displayBankName
 import me.shovon.sms2wallet.presentation.util.TimeFormatter
 
 /**
@@ -463,12 +464,7 @@ class SettingsViewModel @Inject constructor(
 
         const val DEFAULT_RETRY_MINUTES = 5
 
-        internal fun formatDisplayBankName(bank: String): String = when {
-            bank.equals("Mutual Trust Bank", ignoreCase = true) ||
-            bank.equals("Mutual Trust Bank Limited", ignoreCase = true) ||
-            bank.equals("Mutual Trust Bank Ltd", ignoreCase = true) -> "MTB"
-            else -> bank
-        }
+        internal fun formatDisplayBankName(bank: String): String = displayBankName(bank)
 
         /**
          * One row per source the app has actually seen an SMS from, union the sources already
